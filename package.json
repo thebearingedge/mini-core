@@ -1,6 +1,6 @@
 {
   "name": "@thebearingedge/mini-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A small application core registry.",
   "main": "index.js",
   "bin": {
@@ -18,7 +18,7 @@
     "url": "git+https://github.com/thebearingedge/mini-core.git"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/thebearingedge/mini-core/issues"
   },
