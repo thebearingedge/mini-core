@@ -1,17 +1,17 @@
 # mini-core
-A small application core registry with dependency resolution.
+A small application core with dependency resolution.
 
 ## Usage
 
 ```javascript
 import miniCore from '@thebearingedge/mini-core';
 
-const app = miniCore();
+const core = miniCore();
 const foo = { bar: 'baz' };
 
-app.value('foo', foo);
+core.value('foo', foo);
 
-const resolved = app.resolve('foo');
+const resolved = core.resolve('foo');
 
 assert.equal(resolved, foo);
 ```
@@ -20,51 +20,51 @@ assert.equal(resolved, foo);
 
 Invoking `miniCore` returns a container object. Optionally, an object can be passed during creation. The object's values with be registered by key.
 ```javascript
-const app = miniCore({ foo: 'bar' });
+const core = miniCore({ foo: 'bar' });
 
-assert.equal(app.resolve('foo'), 'bar');
+assert.equal(core.resolve('foo'), 'bar');
 ```
 
-## Basic Api
+## Api
 
 #### `value(id, someValue)`
 A string id and value may be passed to store an asset. Multiple id/value pairs can be registered at once using an object.
 ```javascript
-app.value('foo', 'bar'); 
-app.value({ baz: 'qux', quux: 'grault' });
+core.value('foo', 'bar'); 
+core.value({ baz: 'qux', quux: 'grault' });
 ```
 
 #### `resolve(id)`
 Passing an `id` to `resolve` retrieves the corresponding value from `core`;
 ```javascript
-app.value('marco', () => console.log('polo'));
+core.value('marco', () => console.log('polo'));
 
-const marco = app.resolve('marco');
+const marco = core.resolve('marco');
 
 marco(); // "polo"
 ```
 
 #### `install(id, fn)`
-A function also be used to register a dynamic value with `install`. The function is invoked and its return value is registered.
+A function also be used to register a dynamic value with `install`. The function argument is invoked and its return value is registered.
 ```javascript
-app.install('four', () => {
+core.install('four', () => {
   return 2 + 2;
 });
 
-console.log(app.resolve('four')); // 4
+console.log(core.resolve('four')); // 4
 ```
 
 #### `factory(id, fn)`
-A factory function can be registered with `factory`. This function's return value is resolved.
+A factory function can be registered with `factory`. Calling `resolve` invokes the function and its return value is produced.
 ```javascript
 function makeFoo() {
   return { bar: 'baz' };
 }
 
-app.factory('foo', makeFoo);
+core.factory('foo', makeFoo);
 
-const foo1 = app.resolve('foo');
-const foo2 = app.resolve('foo');
+const foo1 = core.resolve('foo');
+const foo2 = core.resolve('foo');
 
 assert.equal(foo1.bar, 'baz');
 assert.equal(foo2.bar, 'baz');
@@ -80,10 +80,10 @@ class Foo {
   }
 }
 
-app.singleton('foo', Foo);
+core.singleton('foo', Foo);
 
-const foo1 = app.resolve('foo');
-const foo2 = app.resolve('foo');
+const foo1 = core.resolve('foo');
+const foo2 = core.resolve('foo');
 
 assert.equal(foo1.name, 'fooInstance');
 assert.equal(foo1, foo2);
@@ -91,7 +91,7 @@ assert.equal(foo1, foo2);
 
 ## Dependency Resolution
 
-`miniCore` offers basic dependency resolution. This allows individual assets to be written in a testable manner. The below `Friends` repository is extremely easy to test as its dependency on `ajax` and `logger` is explicit.
+`miniCore` offers basic dependency resolution. This allows individual assets to be written in a testable manner. The below `Friends` repository is plain,  decoupled, and easy to test. 
 ```javascript
 // Friends.js
 class Friends {
@@ -110,40 +110,41 @@ class Friends {
 
 export default Friends;
 ```
-Once `Friends` is sufficiently tested in isolation, it can be registered to the application core. An array of dependency id's must be added to `Friends`. This allows `miniCore` to look up dependencies during resolution.
+Once `Friends` is sufficiently tested in isolation, it can be registered to the application core. An array of dependency id's must be added to `Friends` as a simple `_inject = []` property.
+```javascript
+Friends._inject = ['ajax', 'logger'];
+```
+This allows `miniCore` to look up dependencies during resolution.
 ```javascript
 import miniCore from '@thebearingedge/mini-core';
 import ajax from './lib/ajax';
 import logger from './lib/logger';
 import Friends from './data/Friends';
 
-const app = miniCore({ ajax, logger });
+const core = miniCore({ ajax, logger });
 
-Friends._inject = ['ajax', 'logger']; // Declare dependencies
+core.singleton('friends', Friends);
 
-app.singleton('friends', Friends);
-
-const friends = app.resolve('friends'); // Friends is instantiated
+const friends = core.resolve('friends'); // Friends is instantiated
 
 friends.fetchAll();
 ```
 
 ## Core Building
 
-Using dependency resolution as explained above, it is possible to access registered assets and compose them.
+Using dependency resolution as explained above, it is possible to access registered assets and compose them using. Infact, the `config` method is supplied purely to access and manipulate objects in `core`. Functions passed to `core` can be written as separate modules, tagged with `_inject` and imported into the `core` wiring.
 
 ```javascript
 import FancyRouter from 'fancy-router';
-import FancyView as from 'fancy-view';
+import FancyView from 'fancy-view';
 import EventEmitter from 'events';
 import miniCore from '@thebearingedge/mini-core';
 
-const emitter = new EventEmitter();
+const core = miniCore({ FancyView })
+    .singleton('emitter', EventEmitter)
+    .value('router', new FancyRouter({ /* router config */}));
 
-const app = miniCore({ FancyView, emitter });
-
-app.value('router', new FancyRouter());
-
+// myComponent could be a separate, testable module.
 function myComponent(FancyView, emitter) {
   return FancyView.extend({
     onClick() {
@@ -151,11 +152,12 @@ function myComponent(FancyView, emitter) {
     }
   });
 }
-
 myComponent._inject = ['FancyView', 'emitter'];
 
-app.install('MyComponent', myComponent);
+core.install('MyComponent', myComponent);
 
+// friendsRoute could be a separate module too
+// `config` simply pulls dependencies and invokes a function on them
 function friendsRoute(router, friends, MyComponent) {
   router.addRoute({
     path: '/friends',
@@ -165,20 +167,25 @@ function friendsRoute(router, friends, MyComponent) {
     component: MyComponent
   });
 }
-
 friendsRoute._inject = ['router', 'friends', 'MyComponent'];
 
-app.config(friendsRoute);
+core.config(friendsRoute);
 
+core.resolve('router').navigateTo('/friends');
 ```
 
 ## Motivation
 
-`miniCore` is not special at less than 100 SLOC. [IoC](https://en.wikipedia.org/wiki/Inversion_of_control) is not new. [DI](https://en.wikipedia.org/wiki/Dependency_injection) is not new. `miniCore` is pretty simplistic and can be used however you like, given the methods described above. Ideally, the only intrusion on your code is that `_inject` declarations are required for dependency resolution. Otherwise your code can exist as you would have written it without `miniCore`. `miniCore` aims to be plumbing only.
+`miniCore` is not special. At less than 100 SLOC, the "auto-magic" is glanceable. In a time of "modular apps" and "reusable components", implicit dependencies are all over the place. If a component is reusable, it can just be plugged into your `core` so a bunch of `requires` and `imports` are eliminated. CommonJS and ES6 Modules are totally sweet for library authoring and distribution, but often they feel weird for application authoring. [This problem](https://gist.github.com/branneman/8048520) has been solved on other platforms and they do it using libraries. In JS land this is largely territory for full-blown frameworks, but the general technique and benefits are available in libraries.
 
-If you stumble upon `miniCore` and are interested in collaborating, please don't hesitate to file an issue.
+[IoC](https://en.wikipedia.org/wiki/Inversion_of_control) is not new. [DI](https://en.wikipedia.org/wiki/Dependency_injection) is not new. `miniCore` is pretty simplistic and can be used however you like, given the methods described above. Ideally, the only intrusion on your code is that `_inject` declarations are required for function dependency resolution (not needed for values or functions with no arguments). Otherwise your code can exist as you would have (hopefully) written it without `miniCore`; modular, composable, and testable.
+
+`miniCore` aims to be a plumbing library only. The entire object graph is left to the developer while lines and lines of manual object creation are taken care of.
+
+If you stumble upon `miniCore` and are interested in collaborating, please don't hesitate to file an issue or peruse the todo :).
 
 ## TODO
-- Design a way to hook `cores` together.
+- Add short-lived class instantiation
+- Enable hooking `cores` together
 - Detect circular dependencies
 - Add more distribution formats

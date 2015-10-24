@@ -1,20 +1,24 @@
 {
   "name": "@thebearingedge/mini-core",
-  "version": "1.0.3",
-  "description": "A small application core registry.",
-  "main": "index.js",
+  "version": "1.0.4",
+  "description": "A small application core.",
+  "main": "dist/index.js",
   "scripts": {
     "test": "./node_modules/.bin/jshint && mocha --compilers js:babel/register",
     "tdd": "./node_modules/.bin/mocha -w --compilers js:babel/register",
     "cover": "./node_modules/.bin/babel-node ./node_modules/.bin/babel-istanbul cover _mocha",
-    "build": "./node_modules/.bin/babel ./src.js -o ./index.js",
+    "build": "./node_modules/.bin/babel index.js -o dist/index.js",
     "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/thebearingedge/mini-core.git"
   },
-  "author": "",
+  "author": "Tim Davis",
+  "keywords": [
+    "ioc", "container", "di", "dependency injection", "core", "sandbox",
+    "registry", "inversion of control"
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/thebearingedge/mini-core/issues"

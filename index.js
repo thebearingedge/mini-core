@@ -1,32 +1,24 @@
 
 'use strict';
 
-Object.defineProperty(exports, '__esModule', {
-  value: true
-});
-var _bind = Function.prototype.bind;
-exports['default'] = miniCore;
+export default function miniCore(assets) {
 
-function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
+  const values = {};
+  const singletons = {};
+  const registry = {};
 
-function miniCore(assets) {
+  const core = {
 
-  var values = {};
-  var singletons = {};
-  var registry = {};
+    resolve,
 
-  var core = {
-
-    resolve: resolve,
-
-    install: function install(id, fn) {
+    install(id, fn) {
 
       this.value(id, invoke(null, fn));
 
       return this;
     },
 
-    singleton: function singleton(id, asset) {
+    singleton(id, asset) {
 
       singletons[id] = true;
       register(id, asset);
@@ -34,32 +26,30 @@ function miniCore(assets) {
       return this;
     },
 
-    value: function value(id, asset) {
-      var _this = this;
+    value(id, asset) {
 
       if (isObject(id)) {
-
-        Object.keys(id).forEach(function (key) {
-          return _this.value(key, id[key]);
-        });
-
-        return this;
+        Object
+          .keys(id)
+          .forEach(key => this.value(key, id[key]));
+      }
+      else {
+        values[id] = true;
+        register(id, asset);
       }
 
-      values[id] = true;
+
+      return this;
+    },
+
+    factory(id, asset) {
+
       register(id, asset);
 
       return this;
     },
 
-    factory: function factory(id, asset) {
-
-      register(id, asset);
-
-      return this;
-    },
-
-    config: function config(fn) {
+    config(fn) {
 
       invoke(null, fn);
 
@@ -70,13 +60,13 @@ function miniCore(assets) {
 
   return core.value(assets || {});
 
+
   function resolve(id) {
 
-    var registered = registry[id];
+    const registered = registry[id];
 
     if (!registered) {
-
-      throw new Error('asset "' + id + '" is not registry.');
+      throw new Error(`asset "${id}" is not registered.`);
     }
 
     if (values[id]) return registered;
@@ -84,33 +74,34 @@ function miniCore(assets) {
     return invoke(id, registered);
   }
 
+
   function invoke(id, fn) {
 
     if (fn._instance) return fn._instance;
 
-    var dependencies = (fn._inject || []).map(function (dep) {
-      return resolve(dep);
-    });
-    var isSingleton = singletons[id];
-    var result = isSingleton ? new (_bind.apply(fn, [null].concat(_toConsumableArray(dependencies))))() : fn.apply(undefined, _toConsumableArray(dependencies));
+    const dependencies = (fn._inject || []).map(dep => resolve(dep));
+    const isSingleton = singletons[id];
+    const result = isSingleton
+      ? new fn(...dependencies)
+      : fn(...dependencies);
 
     if (isSingleton) {
-
       fn._instance = result;
     }
 
     return result;
   }
 
+
   function register(id, asset) {
 
     if (!isUndefined(registry[id])) {
-
-      throw new Error('asset: ' + id + ' is already registry.');
+      throw new Error(`asset: ${id} is already registry.`);
     }
 
     registry[id] = asset;
   }
+
 }
 
 function isUndefined(val) {
@@ -120,4 +111,3 @@ function isUndefined(val) {
 function isObject(val) {
   return val != null && typeof val === 'object';
 }
-module.exports = exports['default'];
