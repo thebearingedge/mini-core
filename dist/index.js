@@ -35,11 +35,12 @@ function miniCore(assets) {
     },
 
     value: function value(id, asset) {
-      var _this = this;
 
       if (isObject(id)) {
-        Object.keys(id).forEach(function (key) {
-          return _this.value(key, id[key]);
+        asset = id;
+        Object.keys(asset).forEach(function (id) {
+          values[id] = true;
+          register(id, asset[id]);
         });
       } else {
         values[id] = true;

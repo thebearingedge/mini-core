@@ -29,15 +29,18 @@ export default function miniCore(assets) {
     value(id, asset) {
 
       if (isObject(id)) {
+        asset = id;
         Object
-          .keys(id)
-          .forEach(key => this.value(key, id[key]));
+          .keys(asset)
+          .forEach(id => {
+            values[id] = true;
+            register(id, asset[id]);
+          });
       }
       else {
         values[id] = true;
         register(id, asset);
       }
-
 
       return this;
     },
