@@ -1,17 +1,12 @@
 {
   "name": "@thebearingedge/mini-core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A small application core registry.",
   "main": "index.js",
-  "bin": {
-    "jshint": "./node_modules/.bin/jshint",
-    "mocha": "./node_modules/.bin/mocha",
-    "babel-node": "./node_modules/.bin/babel-node"
-  },
   "scripts": {
-    "test": "jshint && mocha --compilers js:babel/register",
-    "tdd": "mocha -w --compilers js:babel/register",
-    "cover": "babel-node ./node_modules/.bin/babel-istanbul cover _mocha"
+    "test": "./node_modules/.bin/jshint && mocha --compilers js:babel/register",
+    "tdd": "./node_modules/.bin/mocha -w --compilers js:babel/register",
+    "cover": "./node_modules/.bin/babel-node ./node_modules/.bin/babel-istanbul cover _mocha"
   },
   "repository": {
     "type": "git",
