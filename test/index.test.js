@@ -4,7 +4,7 @@
 import chai from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
-import miniCore from '../src';
+import miniCore from '../';
 
 chai.use(sinonChai);
 
