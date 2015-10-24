@@ -4,7 +4,7 @@ A small application core registry with dependency resolution.
 ## Usage
 
 ```javascript
-import miniCore from 'mini-core';
+import miniCore from '@thebearingedge/mini-core';
 
 const app = miniCore();
 const foo = { bar: 'baz' };
@@ -112,7 +112,7 @@ export default Friends;
 ```
 Once `Friends` is sufficiently tested in isolation, it can be registered to the application core. An array of dependency id's must be added to `Friends`. This allows `miniCore` to look up dependencies during resolution.
 ```javascript
-import miniCore from 'mini-core';
+import miniCore from '@thebearingedge/mini-core';
 import ajax from './lib/ajax';
 import logger from './lib/logger';
 import Friends from './data/Friends';
@@ -136,7 +136,7 @@ Using dependency resolution as explained above, it is possible to access registe
 import FancyRouter from 'fancy-router';
 import FancyView as from 'fancy-view';
 import EventEmitter from 'events';
-import miniCore from 'mini-core';
+import miniCore from '@thebearingedge/mini-core';
 
 const emitter = new EventEmitter();
 
