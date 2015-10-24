@@ -48,6 +48,13 @@ describe('miniCore', () => {
     expect(app.resolve('foo')).to.equal('bar');
   });
 
+  it('throws when an invalid value is passed', () => {
+    const badValue = () => {
+      app.value(null);
+    };
+    expect(badValue).to.throw(Error);
+  });
+
   it('installs new assets', () => {
 
     app.value({ bar: 'bar' });

@@ -35,17 +35,21 @@ function miniCore(assets) {
     },
 
     value: function value(id, asset) {
+      var _this = this;
 
-      if (isObject(id)) {
+      if (isString(id)) {
+        values[id] = true;
+      } else if (isObject(id)) {
         asset = id;
         Object.keys(asset).forEach(function (id) {
-          values[id] = true;
-          register(id, asset[id]);
+          return _this.value(id, asset[id]);
         });
+        return this;
       } else {
-        values[id] = true;
-        register(id, asset);
+        throw new Error('"value" expects a string id and value or object');
       }
+
+      register(id, asset);
 
       return this;
     },
@@ -110,6 +114,10 @@ function miniCore(assets) {
 
 function isUndefined(val) {
   return typeof val === 'undefined';
+}
+
+function isString(val) {
+  return typeof val === 'string';
 }
 
 function isObject(val) {

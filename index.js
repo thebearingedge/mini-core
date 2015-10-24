@@ -28,19 +28,21 @@ export default function miniCore(assets) {
 
     value(id, asset) {
 
-      if (isObject(id)) {
+      if (isString(id)) {
+        values[id] = true;
+      }
+      else if (isObject(id)) {
         asset = id;
         Object
           .keys(asset)
-          .forEach(id => {
-            values[id] = true;
-            register(id, asset[id]);
-          });
+          .forEach(id => this.value(id, asset[id]));
+        return this;
       }
       else {
-        values[id] = true;
-        register(id, asset);
+        throw new Error(`"value" expects a string id and value or object`);
       }
+
+      register(id, asset);
 
       return this;
     },
@@ -109,6 +111,10 @@ export default function miniCore(assets) {
 
 function isUndefined(val) {
   return typeof val === 'undefined';
+}
+
+function isString(val) {
+  return typeof val === 'string';
 }
 
 function isObject(val) {
