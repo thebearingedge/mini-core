@@ -45,7 +45,7 @@ marco(); // "polo"
 ```
 
 #### `install(id, fn)`
-A function also be used to register a dynamic value with `install`. The function argument is invoked and its return value is registered.
+A function can be used to register a dynamic value via `install`. The function argument is invoked and its return value is registered.
 ```javascript
 core.install('four', () => {
   return 2 + 2;
@@ -176,7 +176,9 @@ core.resolve('router').navigateTo('/friends');
 
 ## Motivation
 
-`miniCore` is not special. At less than 100 SLOC, the "auto-magic" is glanceable. In a time of "modular apps" and "reusable components", implicit dependencies are all over the place. If a component is reusable, it can just be plugged into your `core` so a bunch of `requires` and `imports` are eliminated. CommonJS and ES6 Modules are totally sweet for library authoring and distribution, but often they feel weird for application authoring. [This problem](https://gist.github.com/branneman/8048520) has been solved on other platforms and they do it using libraries. In JS land this is largely territory for full-blown frameworks, but the general technique and benefits are available in libraries.
+In a time of "modular apps" and "reusable components", implicit dependencies are all over the place. If a component is reusable, it can just be plugged into your `core` so a bunch of `requires` and `imports` are eliminated. CommonJS and ES6 Modules are totally sweet for library authoring and distribution, but often they feel weird for application authoring.
+
+`miniCore` is not special. [This problem](https://gist.github.com/branneman/8048520) has been solved on other platforms and they do it using libraries. In JS land this has been territory for full-blown frameworks, but the general technique and benefits are not confined to them.
 
 [IoC](https://en.wikipedia.org/wiki/Inversion_of_control) is not new. [DI](https://en.wikipedia.org/wiki/Dependency_injection) is not new. `miniCore` is pretty simplistic and can be used however you like, given the methods described above. Ideally, the only intrusion on your code is that `_inject` declarations are required for function dependency resolution (not needed for values or functions with no arguments). Otherwise your code can exist as you would have (hopefully) written it without `miniCore`; modular, composable, and testable.
 
@@ -185,7 +187,7 @@ core.resolve('router').navigateTo('/friends');
 If you stumble upon `miniCore` and are interested in collaborating, please don't hesitate to file an issue or peruse the todo :).
 
 ## TODO
+- Document merge feature
 - Add short-lived class instantiation
-- Enable hooking `cores` together
 - Detect circular dependencies
 - Add more distribution formats

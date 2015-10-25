@@ -11,11 +11,13 @@ function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
 
 function miniCore(assets) {
 
-  var values = {};
-  var singletons = {};
-  var registry = {};
-
   var core = {
+
+    _values: {},
+
+    _singletons: {},
+
+    _registry: {},
 
     resolve: resolve,
 
@@ -28,7 +30,7 @@ function miniCore(assets) {
 
     singleton: function singleton(id, asset) {
 
-      singletons[id] = true;
+      this._singletons[id] = true;
       register(id, asset);
 
       return this;
@@ -37,21 +39,21 @@ function miniCore(assets) {
     value: function value(id, asset) {
       var _this = this;
 
-      if (isString(id)) {
-        values[id] = true;
-      } else if (isObject(id)) {
+      if (isObject(id)) {
         asset = id;
         Object.keys(asset).forEach(function (id) {
           return _this.value(id, asset[id]);
         });
         return this;
-      } else {
-        throw new Error('"value" expects a string id and value or object');
       }
 
-      register(id, asset);
+      if (isString(id)) {
+        this._values[id] = true;
+        register(id, asset);
+        return this;
+      }
 
-      return this;
+      throw new Error('"value" expects a string id and value or object');
     },
 
     factory: function factory(id, asset) {
@@ -66,6 +68,20 @@ function miniCore(assets) {
       invoke(null, fn);
 
       return this;
+    },
+
+    use: function use(namespace, core) {
+
+      if (isString(namespace)) {
+        namespace += '.';
+      } else if (isObject(namespace)) {
+        core = namespace;
+        namespace = '';
+      } else {
+        throw new Error('"use" expects a namespace and core or core only');
+      }
+
+      return merge(namespace, this, core);
     }
 
   };
@@ -73,14 +89,16 @@ function miniCore(assets) {
   return core.value(assets || {});
 
   function resolve(id) {
+    var _registry = core._registry;
+    var _values = core._values;
 
-    var registered = registry[id];
+    var registered = _registry[id];
 
     if (!registered) {
       throw new Error('asset "' + id + '" is not registered.');
     }
 
-    if (values[id]) return registered;
+    if (_values[id]) return registered;
 
     return invoke(id, registered);
   }
@@ -92,7 +110,7 @@ function miniCore(assets) {
     var dependencies = (fn._inject || []).map(function (dep) {
       return resolve(dep);
     });
-    var isSingleton = singletons[id];
+    var isSingleton = core._singletons[id];
     var result = isSingleton ? new (_bind.apply(fn, [null].concat(_toConsumableArray(dependencies))))() : fn.apply(undefined, _toConsumableArray(dependencies));
 
     if (isSingleton) {
@@ -103,12 +121,27 @@ function miniCore(assets) {
   }
 
   function register(id, asset) {
+    var _registry = core._registry;
 
-    if (!isUndefined(registry[id])) {
-      throw new Error('asset: ' + id + ' is already registry.');
+    if (!isUndefined(_registry[id])) {
+      throw new Error('asset: ' + id + ' is already registered.');
     }
 
-    registry[id] = asset;
+    _registry[id] = asset;
+  }
+
+  function merge(namespace, target, core) {
+
+    var properties = ['_registry', '_singletons', '_values'];
+
+    properties.forEach(function (property) {
+      Object.keys(core[property]).reduce(function (target, key) {
+        target[property][namespace + key] = core[property][key];
+        return target;
+      }, target);
+    });
+
+    return target;
   }
 }
 

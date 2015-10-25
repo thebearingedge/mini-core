@@ -3,11 +3,13 @@
 
 export default function miniCore(assets) {
 
-  const values = {};
-  const singletons = {};
-  const registry = {};
-
   const core = {
+
+    _values: {},
+
+    _singletons: {},
+
+    _registry: {},
 
     resolve,
 
@@ -20,7 +22,7 @@ export default function miniCore(assets) {
 
     singleton(id, asset) {
 
-      singletons[id] = true;
+      this._singletons[id] = true;
       register(id, asset);
 
       return this;
@@ -28,23 +30,22 @@ export default function miniCore(assets) {
 
     value(id, asset) {
 
-      if (isString(id)) {
-        values[id] = true;
-      }
-      else if (isObject(id)) {
+
+      if (isObject(id)) {
         asset = id;
         Object
           .keys(asset)
           .forEach(id => this.value(id, asset[id]));
         return this;
       }
-      else {
-        throw new Error(`"value" expects a string id and value or object`);
+
+      if (isString(id)) {
+        this._values[id] = true;
+        register(id, asset);
+        return this;
       }
 
-      register(id, asset);
-
-      return this;
+      throw new Error('"value" expects a string id and value or object');
     },
 
     factory(id, asset) {
@@ -59,6 +60,22 @@ export default function miniCore(assets) {
       invoke(null, fn);
 
       return this;
+    },
+
+    use(namespace, core) {
+
+      if (isString(namespace)) {
+        namespace += '.';
+      }
+      else if (isObject(namespace)) {
+        core = namespace;
+        namespace = '';
+      }
+      else {
+        throw new Error('"use" expects a namespace and core or core only');
+      }
+
+      return merge(namespace, this, core);
     }
 
   };
@@ -68,13 +85,14 @@ export default function miniCore(assets) {
 
   function resolve(id) {
 
-    const registered = registry[id];
+    const { _registry, _values } = core;
+    const registered = _registry[id];
 
     if (!registered) {
       throw new Error(`asset "${id}" is not registered.`);
     }
 
-    if (values[id]) return registered;
+    if (_values[id]) return registered;
 
     return invoke(id, registered);
   }
@@ -85,7 +103,7 @@ export default function miniCore(assets) {
     if (fn._instance) return fn._instance;
 
     const dependencies = (fn._inject || []).map(dep => resolve(dep));
-    const isSingleton = singletons[id];
+    const isSingleton = core._singletons[id];
     const result = isSingleton
       ? new fn(...dependencies)
       : fn(...dependencies);
@@ -100,11 +118,30 @@ export default function miniCore(assets) {
 
   function register(id, asset) {
 
-    if (!isUndefined(registry[id])) {
-      throw new Error(`asset: ${id} is already registry.`);
+    const { _registry } = core;
+
+    if (!isUndefined(_registry[id])) {
+      throw new Error(`asset: ${id} is already registered.`);
     }
 
-    registry[id] = asset;
+    _registry[id] = asset;
+  }
+
+  function merge(namespace, target, core) {
+
+    const properties = ['_registry', '_singletons', '_values'];
+
+    properties
+      .forEach(property => {
+        Object
+          .keys(core[property])
+          .reduce((target, key) => {
+            target[property][namespace + key] = core[property][key];
+            return target;
+          }, target);
+      });
+
+    return target;
   }
 
 }

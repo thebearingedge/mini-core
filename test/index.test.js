@@ -12,88 +12,104 @@ const { expect } = chai;
 
 describe('miniCore', () => {
 
-  let app;
+  let core;
 
-  beforeEach(() => app = miniCore());
+  beforeEach(() => core = miniCore());
 
-  it('registers values', () => {
+  describe('value', () => {
 
-    const myValue = { foo: 'bar' };
+    it('registers values', () => {
 
-    app.value('myValue', myValue);
+      const myValue = { foo: 'bar' };
 
-    expect(app.resolve('myValue')).to.equal(myValue);
-  });
+      core.value('myValue', myValue);
 
-  it('throws when no asset is found', () => {
-
-    const missing = () => app.resolve('zyzzy');
-
-    expect(missing).to.throw(Error);
-  });
-
-  it('throws on name collision', () => {
-
-    app.value('foo', 'bar');
-
-    const doubleName = () => app.value('foo', 'baz');
-
-    expect(doubleName).to.throw(Error);
-  });
-
-  it('accepts values as key val pairs', () => {
-
-    app.value({ foo: 'bar' });
-
-    expect(app.resolve('foo')).to.equal('bar');
-  });
-
-  it('throws when an invalid value is passed', () => {
-    const badValue = () => {
-      app.value(null);
-    };
-    expect(badValue).to.throw(Error);
-  });
-
-  it('installs new assets', () => {
-
-    app.value({ bar: 'bar' });
-
-    const splitBar = sinon.spy(val => val.split(''));
-
-    splitBar._inject = ['bar'];
-
-    app.install('splitBar', splitBar);
-
-    expect(splitBar.calledOnce).to.equal(true);
-    expect(app.resolve('splitBar')).to.deep.equal(['b', 'a', 'r']);
-    expect(splitBar.calledTwice).to.equal(false);
-  });
-
-  it('invokes factories', () => {
-
-    const fn = sinon.spy(() => {
-      return { foo: 'bar' };
+      expect(core.resolve('myValue')).to.equal(myValue);
     });
 
-    app.factory('fn', fn);
+    it('throws on name collision', () => {
 
-    const result1 = app.resolve('fn');
-    const result2 = app.resolve('fn');
+      core.value('foo', 'bar');
 
-    expect(result1).to.deep.equal(result2);
-    expect(result1).not.to.equal(result2);
-    expect(fn.calledTwice).to.equal(true);
+      const doubleName = () => core.value('foo', 'baz');
+
+      expect(doubleName).to.throw(Error);
+    });
+
+    it('accepts values as key val pairs', () => {
+
+      core.value({ foo: 'bar' });
+
+      expect(core.resolve('foo')).to.equal('bar');
+    });
+
+    it('throws when an invalid value is passed', () => {
+      const badValue = () => {
+        core.value(null);
+      };
+      expect(badValue).to.throw(Error);
+    });
+
+  });
+
+  describe('resolve', () => {
+
+    it('throws when no asset is found', () => {
+
+      const missing = () => core.resolve('zyzzy');
+
+      expect(missing).to.throw(Error);
+    });
+
+  });
+
+  describe('install', () => {
+
+    it('dynamically registers assets', () => {
+
+      core.value({ bar: 'bar' });
+
+      const splitBar = sinon.spy(val => val.split(''));
+
+      splitBar._inject = ['bar'];
+
+      core.install('splitBar', splitBar);
+
+      expect(splitBar.calledOnce).to.equal(true);
+      expect(core.resolve('splitBar')).to.deep.equal(['b', 'a', 'r']);
+      expect(splitBar.calledTwice).to.equal(false);
+    });
+
+  });
+
+  describe('factory', () => {
+
+    it('registers functions to be invoked on resolve', () => {
+
+      const fn = sinon.spy(() => {
+        return { foo: 'bar' };
+      });
+
+      core.factory('fn', fn);
+
+      const result1 = core.resolve('fn');
+      const result2 = core.resolve('fn');
+
+      expect(result1).to.deep.equal(result2);
+      expect(result1).not.to.equal(result2);
+      expect(fn.calledTwice).to.equal(true);
+    });
+
   });
 
   it('resolves dependencies', () => {
 
     const obj = { foo: 'bar' };
-    app.value('obj', obj);
+    core.value('obj', obj);
 
     const fn = sinon.spy(obj => obj);
     fn._inject = ['obj'];
-    app.factory('fn', fn);
+    core.factory('fn', fn);
 
     class Baz {
       constructor(obj) {
@@ -101,53 +117,86 @@ describe('miniCore', () => {
       }
     }
     Baz._inject = ['fn'];
-    app.singleton('baz', Baz);
+    core.singleton('baz', Baz);
 
 
-    const result = app.resolve('baz');
+    const result = core.resolve('baz');
 
     expect(fn).to.have.been.calledWithExactly(obj);
     expect(result.obj).to.equal(obj);
   });
 
-  it('news and caches singletons', () => {
+  describe('singleton', () => {
 
-    const val = { foo: 'bar' };
-    app.value('val', val);
+    it('registers classes to be instantiated once', () => {
 
-    class Foo {
+      const val = { foo: 'bar' };
+      core.value('val', val);
 
-      constructor(val) {
+      class Foo {
 
-        this.val = val;
+        constructor(val) {
+
+          this.val = val;
+        }
       }
-    }
 
-    Foo._inject = ['val'];
+      Foo._inject = ['val'];
 
-    app.singleton('foo', Foo);
+      core.singleton('foo', Foo);
 
-    const foo1 = app.resolve('foo');
-    const foo2 = app.resolve('foo');
+      const foo1 = core.resolve('foo');
+      const foo2 = core.resolve('foo');
 
-    expect(foo1.val).to.equal(val);
-    expect(foo2).to.equal(foo1);
+      expect(foo1.val).to.equal(val);
+      expect(foo2).to.equal(foo1);
+    });
+
   });
 
-  it('configures dependencies', () => {
+  describe('config', () => {
 
-    const val = { foo: 'bar' };
-    app.value('val', val);
+    it('calls function argument with dependencies', () => {
 
-    const fig = val => val.baz = 'qux';
-    fig._inject = ['val'];
+      const val = { foo: 'bar' };
+      core.value('val', val);
 
-    app.config(fig);
+      const fig = val => val.baz = 'qux';
+      fig._inject = ['val'];
 
-    const figged = app.resolve('val');
+      core.config(fig);
 
-    expect(figged).to.equal(val);
-    expect(val).to.deep.equal({ foo: 'bar', baz: 'qux' });
+      const figged = core.resolve('val');
+
+      expect(figged).to.equal(val);
+      expect(val).to.deep.equal({ foo: 'bar', baz: 'qux' });
+    });
+
+  });
+
+  describe('use', () => {
+
+    const otherCore = miniCore({ grault: 'garply' });
+
+    context('when passed a core', () => {
+      it('merges registered assets', () => {
+        core.use(otherCore);
+        expect(core.resolve('grault')).to.equal('garply');
+      });
+    });
+
+    context('when passed a namespace and core', () => {
+      it('prefixes foreign core assets', () => {
+        core.use('other', otherCore);
+        expect(core.resolve('other.grault')).to.equal('garply');
+      });
+    });
+
+    it('throws when a bad value is passed', () => {
+      const badCore = () => core.use(null);
+      expect(badCore).to.throw(Error);
+    });
+
   });
 
 });
