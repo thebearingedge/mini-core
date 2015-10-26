@@ -19,6 +19,8 @@ function miniCore(assets) {
 
     _registry: {},
 
+    _classes: {},
+
     resolve: resolve,
 
     install: function install(id, fn) {
@@ -30,7 +32,7 @@ function miniCore(assets) {
 
     singleton: function singleton(id, asset) {
 
-      this._singletons[id] = true;
+      this._singletons[id] = this._classes[id] = true;
       register(id, asset);
 
       return this;
@@ -44,21 +46,27 @@ function miniCore(assets) {
         Object.keys(asset).forEach(function (id) {
           return _this.value(id, asset[id]);
         });
-        return this;
-      }
-
-      if (isString(id)) {
+      } else if (isString(id)) {
         this._values[id] = true;
         register(id, asset);
-        return this;
+      } else {
+        throw new Error('"value" expects a string id and value or object');
       }
 
-      throw new Error('"value" expects a string id and value or object');
+      return this;
     },
 
     factory: function factory(id, asset) {
 
       register(id, asset);
+
+      return this;
+    },
+
+    'class': function _class(id, Asset) {
+
+      this._classes[id] = true;
+      register(id, Asset);
 
       return this;
     },
@@ -82,6 +90,15 @@ function miniCore(assets) {
       }
 
       return merge(namespace, this, core);
+    },
+
+    wrap: function wrap(id, fn) {
+
+      this.value(id, function () {
+        return invoke(null, fn);
+      });
+
+      return this;
     }
 
   };
@@ -110,10 +127,9 @@ function miniCore(assets) {
     var dependencies = (fn._inject || []).map(function (dep) {
       return resolve(dep);
     });
-    var isSingleton = core._singletons[id];
-    var result = isSingleton ? new (_bind.apply(fn, [null].concat(_toConsumableArray(dependencies))))() : fn.apply(undefined, _toConsumableArray(dependencies));
+    var result = core._classes[id] ? new (_bind.apply(fn, [null].concat(_toConsumableArray(dependencies))))() : fn.apply(undefined, _toConsumableArray(dependencies));
 
-    if (isSingleton) {
+    if (core._singletons[id]) {
       fn._instance = result;
     }
 

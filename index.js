@@ -11,6 +11,8 @@ export default function miniCore(assets) {
 
     _registry: {},
 
+    _classes: {},
+
     resolve,
 
     install(id, fn) {
@@ -22,7 +24,7 @@ export default function miniCore(assets) {
 
     singleton(id, asset) {
 
-      this._singletons[id] = true;
+      this._singletons[id] = this._classes[id] = true;
       register(id, asset);
 
       return this;
@@ -30,27 +32,34 @@ export default function miniCore(assets) {
 
     value(id, asset) {
 
-
       if (isObject(id)) {
         asset = id;
         Object
           .keys(asset)
           .forEach(id => this.value(id, asset[id]));
-        return this;
       }
-
-      if (isString(id)) {
+      else if (isString(id)) {
         this._values[id] = true;
         register(id, asset);
-        return this;
+      }
+      else {
+        throw new Error('"value" expects a string id and value or object');
       }
 
-      throw new Error('"value" expects a string id and value or object');
+      return this;
     },
 
     factory(id, asset) {
 
       register(id, asset);
+
+      return this;
+    },
+
+    class(id, Asset) {
+
+      this._classes[id] = true;
+      register(id, Asset);
 
       return this;
     },
@@ -76,6 +85,13 @@ export default function miniCore(assets) {
       }
 
       return merge(namespace, this, core);
+    },
+
+    wrap(id, fn) {
+
+      this.value(id, () => invoke(null, fn));
+
+      return this;
     }
 
   };
@@ -103,12 +119,11 @@ export default function miniCore(assets) {
     if (fn._instance) return fn._instance;
 
     const dependencies = (fn._inject || []).map(dep => resolve(dep));
-    const isSingleton = core._singletons[id];
-    const result = isSingleton
+    const result = core._classes[id]
       ? new fn(...dependencies)
       : fn(...dependencies);
 
-    if (isSingleton) {
+    if (core._singletons[id]) {
       fn._instance = result;
     }
 

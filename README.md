@@ -71,6 +71,24 @@ assert.equal(foo2.bar, 'baz');
 assert.notEqual(foo1, foo2);
 ```
 
+#### `class(id, Class)`
+Classes can be instantiated on demand after being registered with `class`.
+```javascript
+class Foo {
+  constructor() {
+    this.name = 'fooInstance';
+  }
+}
+
+core.class('foo', Foo);
+
+const foo1 = core.resolve('foo');
+const foo2 = core.resolve('foo');
+
+assert(foo1 instanceof Foo);
+assert.notEqual(foo1, foo2);
+```
+
 #### `singleton(id, Class)`
 If a single instance of a class should be resolved, the class can be registered with `singleton`.
 ```javascript
@@ -130,9 +148,26 @@ const friends = core.resolve('friends'); // Friends is instantiated
 friends.fetchAll();
 ```
 
+#### `wrap(id, fn)`
+
+A function can be stored in a `core` as a `value`. But if this function has dependencies it needs to be `wrapped`. The stored function's dependencies are not immediately resolved on _resolution_, but instead on _invokation_.
+```javascript
+const makeFoo = () => 'foo';
+core.factory('makeFoo', makeFoo);
+
+const delayed = dep => dep.toUppercase();
+delayed._inject = ['makeFoo'];
+core.wrap('delayed', delayed);
+
+const wrapped = core.resolve('delayed'); // makeFoo has not been called
+console.log(wrapped()); // "FOO"
+```
+
 ## Core Building
 
-Using dependency resolution as explained above, it is possible to access registered assets and compose them using. Infact, the `config` method is supplied purely to access and manipulate objects in `core`. Functions passed to `core` can be written as separate modules, tagged with `_inject` and imported into the `core` wiring.
+Using dependency resolution as explained above, it is possible to access registered assets for composition.
+
+The `config` method is supplied purely to access and manipulate objects in `core`. Functions passed to `core` can be written as separate modules, tagged with `_inject` and imported into the `core` wiring.
 
 ```javascript
 import FancyRouter from 'fancy-router';
@@ -188,6 +223,5 @@ If you stumble upon `miniCore` and are interested in collaborating, please don't
 
 ## TODO
 - Document merge feature
-- Add short-lived class instantiation
 - Detect circular dependencies
 - Add more distribution formats

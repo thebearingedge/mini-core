@@ -199,4 +199,51 @@ describe('miniCore', () => {
 
   });
 
+  describe('wrap', () => {
+
+    it('stores a function with dependencies resolved on invokation', () => {
+
+      const factory = sinon.spy(() => 'foo');
+      core.factory('factory', factory);
+
+      const delayed = dep => dep.toUpperCase();
+      delayed._inject = ['factory'];
+      core.wrap('delayed', delayed);
+
+      const wrapped = core.resolve('delayed');
+      expect(factory.called).to.equal(false);
+      const result = wrapped();
+      expect(factory.calledOnce).to.equal(true);
+      expect(result).to.equal('FOO');
+    });
+
+  });
+
+  describe('class', () => {
+
+    it('stores a class to be instantiated', () => {
+
+      const val = { foo: 'bar' };
+      core.value('val', val);
+
+      class Foo {
+
+        constructor(val) {
+
+          this.val = val;
+        }
+      }
+
+      Foo._inject = ['val'];
+
+      core.class('foo', Foo);
+
+      const foo1 = core.resolve('foo');
+      const foo2 = core.resolve('foo');
+
+      expect(foo1.val).to.equal(val);
+      expect(foo2).not.to.equal(foo1);
+    });
+  });
+
 });
