@@ -144,7 +144,7 @@ export default function miniCore(assets) {
 
   function merge(namespace, target, core) {
 
-    const properties = ['_registry', '_singletons', '_values'];
+    const properties = ['_registry', '_singletons', '_values', '_classes'];
 
     properties
       .forEach(property => {

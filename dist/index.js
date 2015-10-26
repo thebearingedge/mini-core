@@ -148,7 +148,7 @@ function miniCore(assets) {
 
   function merge(namespace, target, core) {
 
-    var properties = ['_registry', '_singletons', '_values'];
+    var properties = ['_registry', '_singletons', '_values', '_classes'];
 
     properties.forEach(function (property) {
       Object.keys(core[property]).reduce(function (target, key) {
