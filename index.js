@@ -1,174 +1,302 @@
 
 'use strict';
 
-export default function miniCore(assets) {
+export default function miniCore(constants) {
+
+  const resolving = {};
+  const resolved = [];
 
   const core = {
 
-    _values: {},
+    MiniCoreError,
 
-    _singletons: {},
+    _parent: null,
 
-    _registry: {},
+    _running: false,
 
-    _classes: {},
+    _providers: {},
 
-    resolve,
+    _providerQueue: [],
 
-    install(id, fn) {
+    _configQueue: [],
 
-      this.value(id, invoke(null, fn));
+    _runQueue: [],
 
-      return this;
-    },
+    _children: [],
 
-    singleton(id, asset) {
-
-      this._singletons[id] = this._classes[id] = true;
-      register(id, asset);
-
-      return this;
-    },
-
-    value(id, asset) {
-
+    constant(id, val) {
       if (isObject(id)) {
-        asset = id;
-        Object
-          .keys(asset)
-          .forEach(id => this.value(id, asset[id]));
+        const obj = id;
+        Object.keys(obj).forEach(key => this.constant(key, obj[key]));
       }
       else if (isString(id)) {
-        this._values[id] = true;
-        register(id, asset);
+        assertNotRegistered(id);
+        this._providers[id] = valueProvider(id, val);
       }
       else {
-        throw new Error('"value" expects a string id and value or object');
+        const args = Array.from(arguments);
+        throw new MiniCoreError(`Invalid "constant" parameters "${args}"`);
       }
-
       return this;
     },
 
-    factory(id, asset) {
+    _injector: {
+      has(id) {
+        return core.has(id);
+      },
+      get(id) {
+        return core.get(id);
+      },
+      resolve,
+      invoke
+    },
 
-      register(id, asset);
+    get(id) {
+      if (resolving[id]) {
+        const cycle = resolved.concat(id);
+        throw new MiniCoreError(`Cyclic dependency: ${cycle.join(' -> ')}`);
+      }
+      resolving[id] = true;
+      resolved.push(id);
+      const provider = findProvider(id, this);
+      const result = provider._get();
+      resolving[id] = false;
+      resolved.splice(0);
+      return result;
+    },
 
+    has(id) {
+      let provider = this._providers[id];
+      let core = this;
+      while (isUndefined(provider) && core) {
+        core = core._parent;
+        provider = core._providers[id];
+      }
+      return !isUndefined(provider);
+    },
+
+    provide(id, fn) {
+      assertNotRegistered(id);
+      const { _providers, _injector } = this;
+      const provider = fn(_injector);
+      if (!isFunction(provider._get)) {
+        throw new MiniCoreError(`Provider "${id}" needs a "_get" method`);
+      }
+      _providers[id] = provider;
       return this;
     },
 
-    class(id, Asset) {
+    value(id, val) {
+      if (isObject(id)) {
+        const obj = id;
+        Object.keys(obj).forEach(key => this.value(key, obj[key]));
+      }
+      else if (isString(id)) {
+        assertNotRegistered(id);
+        this._providers[id] = null;
+        this._providerQueue.push(valueProvider(id, val));
+      }
+      else {
+        const args = Array.from(arguments);
+        throw new MiniCoreError(`Invalid "value" parameters "${args}"`);
+      }
+      return this;
+    },
 
-      this._classes[id] = true;
-      register(id, Asset);
+    factory(id, fn, options = {}) {
+      assertNotRegistered(id);
+      if (!isFunction(fn)) {
+        const args = Array.from(arguments);
+        throw new MiniCoreError(`Invalid "factory" parameters "${args}"`);
+      }
+      this._providers[id] = null;
+      this._providerQueue.push(factoryProvider(id, fn, options));
+      return this;
+    },
 
+    class(id, Class, options = {}) {
+      assertNotRegistered(id);
+      if (!isFunction(Class)) {
+        const args = Array.from(arguments);
+        throw new MiniCoreError(`Invalid "class" parameters "${args}"`);
+      }
+      this._providers[id] = null;
+      this._providerQueue.push(classProvider(id, Class, options));
+      return this;
+    },
+
+    bindFactory(id, fn) {
+      assertNotRegistered(id);
+      function bound() {
+        const dependencies = resolve(fn._inject);
+        const args = dependencies.concat(...arguments);
+        return fn(...args);
+      }
+      copyName(bound, fn);
+      return this.value(id, bound);
+    },
+
+    bindClass(id, Class) {
+      assertNotRegistered(id);
+      class Bound extends Class {
+        constructor() {
+          const dependencies = resolve(Class._inject);
+          const args = dependencies.concat(...arguments);
+          super(...args);
+        }
+      }
+      copyName(Bound, Class);
+      return this.value(id, Bound);
+    },
+
+    install(child) {
+      child._parent = this;
+      this._children.push(child);
       return this;
     },
 
     config(fn) {
-
-      invoke(null, fn);
-
+      this._configQueue.push(fn);
       return this;
     },
 
-    use(namespace, core) {
-
-      if (isString(namespace)) {
-        namespace += '.';
-      }
-      else if (isObject(namespace)) {
-        core = namespace;
-        namespace = '';
-      }
-      else {
-        throw new Error('"use" expects a namespace and core or core only');
-      }
-
-      return merge(namespace, this, core);
+    run(fn) {
+      this._runQueue.push(fn);
+      return this;
     },
 
-    wrap(id, fn) {
+    bootstrap(fn) {
+      let root = this;
+      while (root._parent && !root._parent._running) {
+        root = root._parent;
+      }
+      root._bootstrap();
+      fn && invoke(fn); // jshint ignore: line
+    },
 
-      this.value(id, () => invoke(null, fn));
-
-      return this;
+    _bootstrap() {
+      const [
+        _configQueue, _providers, _providerQueue,
+        _runQueue, _children
+      ] = this;
+      while (_configQueue.length) {
+        const config = _configQueue.shift();
+        const dependencies = (config._inject || []).map(id => {
+        const provider = findProvider(id, this);
+          return id.slice(id.length - 8) === 'Provider'
+            ? provider
+            : provider._get();
+        });
+        config(...dependencies);
+      }
+      while (_providerQueue.length) {
+        const provider = _providerQueue.shift();
+        _providers[provider.id] = provider;
+      }
+      while (_runQueue.length) {
+        invoke(_runQueue.shift());
+      }
+      _children.forEach(child => child._bootstrap());
+      this._running = true;
     }
 
   };
 
-  return core.value(assets || {});
+  return core.constant(constants || {});
 
 
-  function resolve(id) {
-
-    const { _registry, _values } = core;
-    const registered = _registry[id];
-
-    if (!registered) {
-      throw new Error(`asset "${id}" is not registered.`);
+  function assertNotRegistered(id) {
+    if (!isUndefined(core._providers[id])) {
+      throw new MiniCoreError(`"${id}" has already been registered`);
     }
-
-    if (_values[id]) return registered;
-
-    return invoke(id, registered);
   }
 
+  function resolve(dependencies = []) {
+    return dependencies.map(id => core.get(id));
+  }
 
-  function invoke(id, fn) {
-
-    if (fn._instance) return fn._instance;
-
-    const dependencies = (fn._inject || []).map(dep => resolve(dep));
-    const result = core._classes[id]
-      ? new fn(...dependencies)
+  function invoke(fn, asNew = false) {
+    const dependencies = resolve(fn._inject);
+    return asNew
+      ? new fn(...dependencies) // jshint ignore: line
       : fn(...dependencies);
-
-    if (core._singletons[id]) {
-      fn._instance = result;
-    }
-
-    return result;
   }
 
-
-  function register(id, asset) {
-
-    const { _registry } = core;
-
-    if (!isUndefined(_registry[id])) {
-      throw new Error(`asset: ${id} is already registered.`);
-    }
-
-    _registry[id] = asset;
+  function valueProvider(id, val) {
+    return {
+      id,
+      _get() { return val; }
+    };
   }
 
-  function merge(namespace, target, core) {
+  function factoryProvider(id, fn, options) {
+    return {
+      id,
+      _cache: null,
+      _get() {
+        if (this._cache) return this._cache;
+        const result = invoke(fn);
+        return options.cache ? (this._cache = result) : result;
+      }
+    };
+  }
 
-    const properties = ['_registry', '_singletons', '_values', '_classes'];
-
-    properties
-      .forEach(property => {
-        Object
-          .keys(core[property])
-          .reduce((target, key) => {
-            target[property][namespace + key] = core[property][key];
-            return target;
-          }, target);
-      });
-
-    return target;
+  function classProvider(id, Class, options) {
+    return {
+      id,
+      _cache: null,
+      _get() {
+        if (core._cache) return core._cache;
+        const instance = invoke(Class, true);
+        return options.cache
+          ? (core._cache = instance)
+          : instance;
+      }
+    };
   }
 
 }
 
-function isUndefined(val) {
-  return typeof val === 'undefined';
+class MiniCoreError extends Error {
+  constructor() {
+    super(...arguments);
+    this.message = arguments[0];
+  }
 }
 
-function isString(val) {
-  return typeof val === 'string';
+function isUndefined(value) {
+  return typeof value === 'undefined';
 }
 
-function isObject(val) {
-  return val != null && typeof val === 'object';
+function isString(value) {
+  return typeof value === 'string';
+}
+
+function isObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isFunction(value) {
+  return typeof value === 'function';
+}
+
+function copyName(to, from) {
+  Object.defineProperty(to, 'name', {
+    enumerable: false,
+    writeable: false,
+    configurable: true,
+    value: from.name
+  });
+}
+
+function findProvider(id, core) {
+  let provider = null;
+  while (core && !provider) {
+    provider = core._providers[`${id}Provider`] || core._providers[id];
+    core = core._parent;
+  }
+  if (!provider) {
+    throw new MiniCoreError(`Dependency "${id}" not found`);
+  }
+  return provider;
 }

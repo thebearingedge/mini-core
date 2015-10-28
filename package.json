@@ -1,6 +1,6 @@
 {
-  "name": "@thebearingedge/mini-core",
-  "version": "1.2.1",
+  "name": "mini-core",
+  "version": "1.0.0",
   "description": "A small application core.",
   "main": "dist/index.js",
   "scripts": {
