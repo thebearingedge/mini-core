@@ -48,17 +48,17 @@ describe('miniCore', () => {
     });
 
     it('throws if cycle detected', () => {
-      core.provide('fooProvider', injector => {
+      core.provide('foo', injector => {
         return {
           _get() { return injector.resolve(['bar']); }
         };
       });
-      core.provide('barProvider', injector => {
+      core.provide('bar', injector => {
         return {
           _get() { return injector.resolve(['baz']); }
         };
       });
-      core.provide('bazProvider', injector => {
+      core.provide('baz', injector => {
         return {
           _get() { return injector.resolve(['foo']); }
         };

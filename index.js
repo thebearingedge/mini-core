@@ -40,12 +40,8 @@ export default function miniCore(constants) {
     },
 
     _injector: {
-      has(id) {
-        return core.has(id);
-      },
-      get(id) {
-        return core.get(id);
-      },
+      get: id => core.get(id),
+      has: id => core.has(id),
       resolve,
       invoke
     },
@@ -72,11 +68,10 @@ export default function miniCore(constants) {
     },
 
     provide(id, fn) {
-      assertNotRegistered(id);
       if (!isProvider(id)) {
-        const message = `"provide" expects an id: e.g. ${id || 'foo'}Provider`;
-        throw new MiniCoreError(message);
+        id += 'Provider';
       }
+      assertNotRegistered(id);
       const { _providers, _injector } = this;
       const provider = fn(_injector);
       if (!isFunction(provider._get)) {
