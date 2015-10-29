@@ -73,10 +73,14 @@ export default function miniCore(constants) {
 
     provide(id, fn) {
       assertNotRegistered(id);
+      if (!isProvider(id)) {
+        const message = `"provide" expects an id: e.g. ${id || 'foo'}Provider`;
+        throw new MiniCoreError(message);
+      }
       const { _providers, _injector } = this;
       const provider = fn(_injector);
       if (!isFunction(provider._get)) {
-        throw new MiniCoreError(`Provider "${id}" needs a "_get" method`);
+        throw new MiniCoreError(`"${id}" needs a "_get" method`);
       }
       provider.id = id;
       _providers[id] = provider;
@@ -153,10 +157,10 @@ export default function miniCore(constants) {
         const dependencies = (config._inject || []).map(id => {
           const provider = findProvider(id, this);
           if (!provider) {
-            const message = `"${id}" not found or illegal during config phase`;
+            const message = `"config" dependency "${id}" not found or illegal`;
             throw new MiniCoreError(message);
           }
-          return id.slice(id.length - 8) === 'Provider'
+          return isProvider(id)
             ? provider
             : provider._get();
         });
@@ -278,4 +282,8 @@ function findProvider(id, core) {
     core = core._parent;
   }
   return provider;
+}
+
+function isProvider(id) {
+  return id.slice(id.length - 8) === 'Provider';
 }

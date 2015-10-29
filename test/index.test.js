@@ -30,7 +30,7 @@ describe('miniCore', () => {
     it('throws if no ancestor provider', () => {
       const foo = bar => bar;
       foo._inject = ['bar'];
-      core.provide('foo', injector => {
+      core.provide('fooProvider', injector => {
         return {
           _cache: null,
           _get() {
@@ -120,11 +120,11 @@ describe('miniCore', () => {
 
     it('throws if the provider does not have a "_get" method', () => {
       const badProvider = () => {
-        core.provide('foo', () => {
+        core.provide('fooProvider', () => {
           return {};
         });
       };
-      const message = 'Provider "foo" needs a "_get" method';
+      const message = '"fooProvider" needs a "_get" method';
       expect(badProvider).to.throw(Error, message);
     });
 
@@ -248,7 +248,7 @@ describe('miniCore', () => {
 
   describe('bootstrap(fn)', () => {
 
-    it('executes configs, runs, starts the core, and calls fn', () => {
+    it('executes configQueue, runQueue, starts the core, and calls fn', () => {
       const fooProvider = { _get() { return 'bar'; } };
       core.provide('fooProvider', () => {
         return fooProvider;
@@ -279,7 +279,7 @@ describe('miniCore', () => {
       expect(core._running).to.equal(true);
     });
 
-    it('starts parent core before children', () => {
+    it('starts root core before children', () => {
       const child = miniCore();
       core.install(child);
       const parentSpy = sinon.spy(core, '_bootstrap');
@@ -288,7 +288,18 @@ describe('miniCore', () => {
       expect(parentSpy.calledBefore(childSpy)).to.equal(true);
     });
 
-    it('throws if illegal dependencies are required', () => {
+    it('throws if missing dependencies are requested', () => {
+      const config = () => {};
+      config._inject = ['foo'];
+      core.config(config);
+      const missingDep = () => {
+        core.bootstrap();
+      };
+      const message = '"config" dependency "foo" not found or illegal';
+      expect(missingDep).to.throw(message);
+    });
+
+    it('throws if illegal dependencies are requested', () => {
       core.value({ foo: 'bar' });
       const config = () => {};
       config._inject = ['foo'];
@@ -296,7 +307,7 @@ describe('miniCore', () => {
       const illegalDep = () => {
         core.bootstrap();
       };
-      const message = '"foo" not found or illegal during config phase';
+      const message = '"config" dependency "foo" not found or illegal';
       expect(illegalDep).to.throw(message);
     });
 
