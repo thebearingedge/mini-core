@@ -23,7 +23,8 @@ describe('miniCore', () => {
       const noProvider = () => {
         core.get('foo');
       };
-      expect(noProvider).to.throw(core.MiniCoreError, 'not found');
+      const message = 'Dependency "foo" not found';
+      expect(noProvider).to.throw(message);
     });
 
     it('throws if no ancestor provider', () => {
@@ -42,36 +43,38 @@ describe('miniCore', () => {
       const noProvider = () => {
         core.get('foo');
       };
-      expect(noProvider).to.throw(core.MiniCoreError, 'not found');
+      const message = 'Dependency "bar" not found';
+      expect(noProvider).to.throw(message);
     });
 
-    it('throws if dependencies are cyclic', () => {
-      core.provide('foo', injector => {
+    it('throws if cycle detected', () => {
+      core.provide('fooProvider', injector => {
         return {
-          _get() {
-            return injector.resolve(['bar']);
-          }
+          _get() { return injector.resolve(['bar']); }
         };
       });
-      core.provide('bar', injector => {
+      core.provide('barProvider', injector => {
         return {
-          _get() {
-            return injector.resolve(['baz']);
-          }
+          _get() { return injector.resolve(['baz']); }
         };
       });
-      core.provide('baz', injector => {
+      core.provide('bazProvider', injector => {
         return {
-          _get() {
-            return injector.resolve(['foo']);
-          }
+          _get() { return injector.resolve(['foo']); }
         };
       });
       const cyclic = () => {
         core.get('foo');
       };
-      const message = 'Cyclic dependency: foo -> bar -> baz -> foo';
-      expect(cyclic).to.throw(core.MiniCoreError, message);
+      const message = 'Cyclic dependency "foo -> bar -> baz -> foo"';
+      expect(cyclic).to.throw(Error, message);
+    });
+
+    it('resolves dependencies', () => {
+      core.provide('fooProvider', () => {
+        return { _get() { return 'bar'; } };
+      });
+      expect(core.get('foo')).to.equal('bar');
     });
 
   });
@@ -90,10 +93,12 @@ describe('miniCore', () => {
     });
 
     it('throws if bad args are passed', () => {
+      const obj = { toString: null };
       const badConstant = () => {
-        core.constant(null);
+        core.constant(null, obj);
       };
-      expect(badConstant).to.throw(core.MiniCoreError, 'Invalid');
+      const message = 'Invalid parameters (null, ) for constant "null"';
+      expect(badConstant).to.throw(Error, message);
     });
 
   });
@@ -101,7 +106,6 @@ describe('miniCore', () => {
   describe('provide(id, provider)', () => {
 
     it('registers a provider', () => {
-
       const bazProvider = injector => {
         return {
           _get() {
@@ -110,7 +114,6 @@ describe('miniCore', () => {
           }
         };
       };
-
       core.provide('bazProvider', bazProvider);
       expect(core._providers.bazProvider).to.have.property('_get');
     });
@@ -121,7 +124,40 @@ describe('miniCore', () => {
           return {};
         });
       };
-      expect(badProvider).to.throw(core.MiniCoreError, '_get');
+      const message = 'Provider "foo" needs a "_get" method';
+      expect(badProvider).to.throw(Error, message);
+    });
+
+    it('knows if a local provider is registered', () => {
+      core.constant('foo', 'bar');
+      core.provide('bazProvider', (injector) => {
+        return {
+          _get() { return injector.has('foo'); }
+        };
+      });
+      expect(core.get('baz')).to.equal(true);
+    });
+
+    it('knows if an ancestor provider is registered', () => {
+      const parent = miniCore({ foo: 'bar' });
+      core.constant('baz', 'qux');
+      parent.install(core);
+      core.provide('quuxProvider', (injector) => {
+        return {
+          _get() { return injector.has('foo'); }
+        };
+      });
+      expect(core.get('quux')).to.equal(true);
+    });
+
+    it('can get a dependency', () => {
+      core.constant('foo', 'bar');
+      core.provide('bazProvider', (injector) => {
+        return {
+          _get() { return injector.get('foo'); }
+        };
+      });
+      expect(core.get('baz')).to.equal('bar');
     });
 
   });
@@ -131,7 +167,7 @@ describe('miniCore', () => {
     it('provides values', () => {
       const foo = { bar: 'baz' };
       core.value('foo', foo);
-      expect(core._providerQueue[0]).to.have.property('id', 'foo');
+      expect(core._providerQueue[0]._get()).to.equal(foo);
     });
 
     it('accepts a map of values', () => {
@@ -146,14 +182,17 @@ describe('miniCore', () => {
       const fooAgain = () => {
         core.value('foo', 'baz');
       };
-      expect(fooAgain).to.throw(core.MiniCoreError, 'registered');
+      const message = '"foo" has already been registered';
+      expect(fooAgain).to.throw(Error, message);
     });
 
     it('throws if bad args are passed', () => {
+      const obj = { toString() { return 'obj'; } };
       const badValue = () => {
-        core.value(null);
+        core.value(null, obj);
       };
-      expect(badValue).to.throw(core.MiniCoreError, 'Invalid');
+      const message = 'Invalid parameters (null, obj) for value "null"';
+      expect(badValue).to.throw(Error, message);
     });
 
   });
@@ -181,9 +220,84 @@ describe('miniCore', () => {
 
     it('throws on invalid parameters', () => {
       const badFactory = () => {
-        core.factory(null);
+        core.factory(null, undefined);
       };
-      expect(badFactory).to.throw(core.MiniCoreError, 'Invalid');
+      const message = 'Invalid parameters (null, undefined) for factory "null"';
+      expect(badFactory).to.throw(Error, message);
+    });
+
+  });
+
+  describe('config(fn)', () => {
+
+    it('enqueues a config function', () => {
+      core.config(() => {});
+      expect(core._configQueue).to.have.property('length', 1);
+    });
+
+  });
+
+  describe('run(fn)', () => {
+
+    it('enqueues a run function', () => {
+      core.run(() => {});
+      expect(core._runQueue).to.have.property('length', 1);
+    });
+
+  });
+
+  describe('bootstrap(fn)', () => {
+
+    it('executes configs, runs, starts the core, and calls fn', () => {
+      const fooProvider = { _get() { return 'bar'; } };
+      core.provide('fooProvider', () => {
+        return fooProvider;
+      });
+      core.value({ baz: 'qux' });
+      core.constant({ quux: 'grault' });
+      const config1Spy = sinon.spy();
+      config1Spy._inject = ['fooProvider', 'quux'];
+      core.config(config1Spy);
+      const config2Spy = sinon.spy();
+      core.config(config2Spy);
+      const runSpy = sinon.spy();
+      runSpy._inject = ['baz', 'quux'];
+      core.run(runSpy);
+      const bootSpy = sinon.spy();
+      bootSpy._inject = ['foo', 'baz'];
+      core.bootstrap(bootSpy);
+      expect(config1Spy.calledOnce).to.equal(true);
+      expect(config1Spy).to.have.been.calledWithExactly(fooProvider, 'grault');
+      expect(config2Spy.calledOnce).to.equal(true);
+      expect(config2Spy).to.have.been.calledWithExactly();
+      expect(core._configQueue).to.have.property('length', 0);
+      expect(runSpy.calledOnce).to.equal(true);
+      expect(runSpy).to.have.been.calledWithExactly('qux', 'grault');
+      expect(core._runQueue).to.have.property('length', 0);
+      expect(bootSpy.calledOnce).to.equal(true);
+      expect(bootSpy).to.have.been.calledWithExactly('bar', 'qux');
+      expect(core._running).to.equal(true);
+    });
+
+    it('starts parent core before children', () => {
+      const child = miniCore();
+      core.install(child);
+      const parentSpy = sinon.spy(core, '_bootstrap');
+      const childSpy = sinon.spy(child, '_bootstrap');
+      child.bootstrap();
+      expect(parentSpy.calledBefore(childSpy)).to.equal(true);
+    });
+
+    it('throws if illegal dependencies are required', () => {
+      core.value({ foo: 'bar' });
+      const config = () => {};
+      config._inject = ['foo'];
+      core.config(config);
+      const illegalDep = () => {
+        core.bootstrap();
+      };
+      const message = '"foo" not found or illegal during config phase';
+      expect(illegalDep).to.throw(message);
     });
 
   });
@@ -218,61 +332,12 @@ describe('miniCore', () => {
 
     it('throws on invalid parameters', () => {
       const badClass = () => {
-        core.class(null);
+        core.class();
       };
-      expect(badClass).to.throw(core.MiniCoreError, 'Invalid');
+      const message = 'Invalid parameters () for class "undefined"';
+      expect(badClass).to.throw(Error, message);
     });
 
   });
-
-  describe('bindFactory(id, function)', () => {
-
-    it('binds factories to their dependencies', () => {
-      const foo = { bar: 'baz' };
-      core.provide('foo', () => {
-        return {
-          _get() { return foo; }
-        };
-      });
-      function qux(dep, arg) {
-        return Object.assign({}, dep, { arg });
-      }
-      qux._inject = ['foo'];
-      core.bindFactory('qux', qux);
-      const boundQux = core._providerQueue[0]._get();
-      expect(boundQux.name).to.equal('qux');
-      expect(boundQux('grault')).to.deep.equal({ bar: 'baz', arg: 'grault' });
-    });
-
-  });
-
-  describe('bindClass(id, Class)', () => {
-
-    it('binds classes to their dependencies', () => {
-      const foo = { bar: 'baz' };
-      core.provide('foo', () => {
-        return {
-          _get() { return foo; }
-        };
-      });
-      class Qux {
-        constructor(dep, arg) {
-          this.dep = dep;
-          this.arg = arg;
-        }
-      }
-      Qux._inject = ['foo'];
-      core.bindClass('Qux', Qux);
-      const BoundQux = core._providerQueue[0]._get();
-      expect(BoundQux.name).to.equal('Qux');
-      const qux = new BoundQux('quux');
-      expect(qux instanceof Qux).to.equal(true);
-      expect(qux.dep).to.equal(foo);
-      expect(qux.arg).to.equal('quux');
-    });
-
-  });
-
-
 
 });
