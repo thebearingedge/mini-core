@@ -8,26 +8,46 @@ export default function miniCore(constants) {
 
   const core = {
 
-    MiniCoreError,
-
     _parent: null,
 
-    _running: false,
+    _started: false,
 
     _providers: {},
 
-    _providerQueue: [],
-
     _configQueue: [],
+
+    _providerQueue: [],
 
     _runQueue: [],
 
     _children: [],
 
+    _injector: {
+      has: id => core.has(id),
+      get: id => core.get(id),
+      invoke
+    },
+
+    has(id) {
+      return !isUndefined(findProvider(id, this));
+    },
+
+    provide(id, fn) {
+      if (!isProvider(id)) id += 'Provider';
+      assertNotRegistered(id);
+      const { _providers, _injector } = this;
+      const provider = fn(_injector);
+      if (!isFunction(provider._get)) {
+        throw new MiniCoreError(`"${id}" needs a "_get" method`);
+      }
+      provider.id = id;
+      _providers[id] = provider;
+      return this;
+    },
+
     constant(id, val) {
       if (isObject(id)) {
-        const obj = id;
-        Object.keys(obj).forEach(key => this.constant(key, obj[key]));
+        Object.keys(id).forEach(key => this.constant(key, id[key]));
       }
       else if (isString(id)) {
         assertNotRegistered(id);
@@ -39,11 +59,38 @@ export default function miniCore(constants) {
       return this;
     },
 
-    _injector: {
-      get: id => core.get(id),
-      has: id => core.has(id),
-      resolve,
-      invoke
+    value(id, val) {
+      if (isObject(id)) {
+        Object.keys(id).forEach(key => this.value(key, id[key]));
+      }
+      else if (isString(id)) {
+        assertNotRegistered(id);
+        this._providers[id] = null;
+        this._providerQueue.push(valueProvider(id, val));
+      }
+      else {
+        throw new InvalidParameterError('value', Array.from(arguments));
+      }
+      return this;
+    },
+
+    factory(id, fn, options = { withNew: false }) {
+      assertNotRegistered(id);
+      if (!isFunction(fn)) {
+        throw new InvalidParameterError('factory', Array.from(arguments));
+      }
+      this._providers[id] = null;
+      this._providerQueue.push(factoryProvider(id, fn, options));
+      return this;
+    },
+
+    class(id, Class, dependencies, options = {}) {
+      if (!isFunction(Class)) {
+        throw new InvalidParameterError('class', Array.from(arguments));
+      }
+      Class._inject = dependencies || [];
+      options.withNew = true;
+      return this.factory(id, Class, options);
     },
 
     get(id) {
@@ -63,67 +110,6 @@ export default function miniCore(constants) {
       return result;
     },
 
-    has(id) {
-      return !isUndefined(findProvider(id, this));
-    },
-
-    provide(id, fn) {
-      if (!isProvider(id)) {
-        id += 'Provider';
-      }
-      assertNotRegistered(id);
-      const { _providers, _injector } = this;
-      const provider = fn(_injector);
-      if (!isFunction(provider._get)) {
-        throw new MiniCoreError(`"${id}" needs a "_get" method`);
-      }
-      provider.id = id;
-      _providers[id] = provider;
-      return this;
-    },
-
-    value(id, val) {
-      if (isObject(id)) {
-        const obj = id;
-        Object.keys(obj).forEach(key => this.value(key, obj[key]));
-      }
-      else if (isString(id)) {
-        assertNotRegistered(id);
-        this._providers[id] = null;
-        this._providerQueue.push(valueProvider(id, val));
-      }
-      else {
-        throw new InvalidParameterError('value', Array.from(arguments));
-      }
-      return this;
-    },
-
-    factory(id, fn, options = {}) {
-      assertNotRegistered(id);
-      if (!isFunction(fn)) {
-        throw new InvalidParameterError('factory', Array.from(arguments));
-      }
-      this._providers[id] = null;
-      this._providerQueue.push(factoryProvider(id, fn, options));
-      return this;
-    },
-
-    class(id, Class, options = {}) {
-      assertNotRegistered(id);
-      if (!isFunction(Class)) {
-        throw new InvalidParameterError('class', Array.from(arguments));
-      }
-      this._providers[id] = null;
-      this._providerQueue.push(classProvider(id, Class, options));
-      return this;
-    },
-
-    install(child) {
-      child._parent = this;
-      this._children.push(child);
-      return this;
-    },
-
     config(fn) {
       this._configQueue.push(fn);
       return this;
@@ -134,48 +120,58 @@ export default function miniCore(constants) {
       return this;
     },
 
+    createChild() {
+      const core = miniCore(...arguments);
+      core._parent = this;
+      this._children.push(core);
+      return core;
+    },
+
     bootstrap(fn) {
       let root = this;
-      while (root._parent && !root._parent._running) {
+      while (root._parent && !root._parent._started) {
         root = root._parent;
       }
       root._bootstrap();
-      fn && invoke(fn); // jshint ignore: line
+      if (fn) invoke(fn);
     },
 
     _bootstrap() {
-      const {
-        _configQueue, _providers, _providerQueue, _runQueue, _children
-      } = this;
+      const { _children } = this;
+      this._configure();
+      _children.forEach(child => child._configure());
+      this._flushProviderQueue();
+      _children.forEach(child => child._flushProviderQueue());
+      this._flushRunQueue();
+      _children.forEach(child => child._flushRunQueue());
+    },
+
+    _configure() {
+      const { _configQueue } = this;
       while (_configQueue.length) {
-        const config = _configQueue.shift();
-        const dependencies = (config._inject || []).map(id => {
-          const provider = findProvider(id, this);
-          if (!provider) {
-            const message = `"config" dependency "${id}" not found or illegal`;
-            throw new MiniCoreError(message);
-          }
-          return isProvider(id)
-            ? provider
-            : provider._get();
-        });
-        config(...dependencies);
+        configure(_configQueue.shift());
       }
+    },
+
+    _flushProviderQueue() {
+      const { _providerQueue, _providers } = this;
       while (_providerQueue.length) {
         const provider = _providerQueue.shift();
         _providers[provider.id] = provider;
       }
+    },
+
+    _flushRunQueue() {
+      const { _runQueue } = this;
       while (_runQueue.length) {
         invoke(_runQueue.shift());
       }
-      _children.forEach(child => child._bootstrap());
-      this._running = true;
+      this._started = true;
     }
 
   };
 
   return core.constant(constants || {});
-
 
   function assertNotRegistered(id) {
     if (!isUndefined(core._providers[id])) {
@@ -183,47 +179,39 @@ export default function miniCore(constants) {
     }
   }
 
-  function resolve(dependencies = []) {
-    return dependencies.map(id => core.get(id));
-  }
-
-  function invoke(fn, asNew = false) {
+  function invoke(fn, options = { withNew: false }) {
     const Fn = fn;
-    const dependencies = resolve(fn._inject);
-    return asNew ? new Fn(...dependencies) : fn(...dependencies);
+    const deps = (fn._inject || []).map(id => core.get(id));
+    return options.withNew ? new Fn(...deps) : fn(...deps);
   }
 
   function valueProvider(id, val) {
-    return {
-      id,
-      _get() { return val; }
-    };
+    return { id, _get: () => val };
   }
 
   function factoryProvider(id, fn, options) {
+    const { cache, withNew } = options;
     return {
       id,
       _cache: null,
       _get() {
         if (this._cache) return this._cache;
-        const result = invoke(fn);
-        return options.cache ? (this._cache = result) : result;
+        const result = invoke(fn, { withNew });
+        return cache ? (this._cache = result) : result;
       }
     };
   }
 
-  function classProvider(id, Class, options) {
-    return {
-      id,
-      _cache: null,
-      _get() {
-        if (core._cache) return core._cache;
-        const instance = invoke(Class, true);
-        return options.cache
-          ? (core._cache = instance)
-          : instance;
+  function configure(config) {
+    const dependencies = (config._inject || []).map(id => {
+      const provider = findProvider(id, core);
+      if (!provider) {
+        const message = `"config" dependency "${id}" not found or illegal`;
+        throw new MiniCoreError(message);
       }
-    };
+      return isProvider(id) ? provider : provider._get();
+    });
+    config(...dependencies);
   }
 
 }
@@ -271,7 +259,7 @@ function toString(value) {
 }
 
 function findProvider(id, core) {
-  let provider = null;
+  let provider;
   while (core && !provider) {
     provider = core._providers[`${id}Provider`] || core._providers[id];
     core = core._parent;

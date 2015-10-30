@@ -1,4 +1,5 @@
 {
   "laxbreak": true,
-  "newcap": true
+  "newcap": true,
+  "expr": true
 }
