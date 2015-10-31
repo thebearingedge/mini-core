@@ -122,12 +122,6 @@ describe('miniCore', () => {
       expect(core._providers.foo).to.have.property('id', 'foo');
     });
 
-    it('throws on invalid parameters', () => {
-      const obj = { toString: null };
-      const message = 'Invalid parameters (null, ) for constant "null"';
-      expect(() => core.constant(null, obj)).to.throw(Error, message);
-    });
-
   });
 
   describe('value(id, val)', () => {
@@ -151,15 +145,9 @@ describe('miniCore', () => {
       expect(() => core.value('foo', 'baz')).to.throw(Error, message);
     });
 
-    it('throws on invalid parameters', () => {
-      const obj = { toString: () => 'obj' };
-      const message = 'Invalid parameters (null, obj) for value "null"';
-      expect(() => core.value(null, obj)).to.throw(Error, message);
-    });
-
   });
 
-  describe('factory(id, fn, options)', () => {
+  describe('factory(id, fn, options, deps)', () => {
 
     it('provides factories', () => {
       const foo = () => 'bar';
@@ -178,14 +166,9 @@ describe('miniCore', () => {
       expect(foo1).to.equal(foo2);
     });
 
-    it('throws on invalid parameters', () => {
-      const message = 'Invalid parameters (null, undefined) for factory "null"';
-      expect(() => core.factory(null, undefined)).to.throw(Error, message);
-    });
-
   });
 
-  describe('class(id, fn, deps, options)', () => {
+  describe('class(id, fn, options, deps)', () => {
 
     it('provides classes', () => {
       class Foo {
@@ -206,16 +189,11 @@ describe('miniCore', () => {
           fooSpy();
         }
       }
-      core.class('foo', Foo, [], { cache: true });
+      core.class('foo', Foo, { cache: true });
       const foo1 = core._providerQueue[0]._get();
       const foo2 = core._providerQueue[0]._get();
       expect(fooSpy.calledOnce).to.equal(true);
       expect(foo1).to.equal(foo2);
-    });
-
-    it('throws on invalid parameters', () => {
-      const message = 'Invalid parameters () for class "undefined"';
-      expect(() => core.class()).to.throw(Error, message);
     });
 
   });
@@ -251,8 +229,7 @@ describe('miniCore', () => {
       const config2Spy = sinon.spy();
       core.config(config2Spy);
       const runSpy = sinon.spy();
-      runSpy._inject = ['baz', 'quux'];
-      core.run(runSpy);
+      core.run(runSpy, { inject: ['baz', 'quux'] });
       const bootSpy = sinon.spy();
       bootSpy._inject = ['foo', 'baz'];
       core.bootstrap(bootSpy);
@@ -279,8 +256,7 @@ describe('miniCore', () => {
 
     it('throws if missing dependencies are requested', () => {
       const config = () => {};
-      config._inject = ['foo'];
-      core.config(config);
+      core.config(config, { inject: ['foo'] });
       const message = '"config" dependency "foo" not found or illegal';
       expect(() => core.bootstrap()).to.throw(Error, message);
     });

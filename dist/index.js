@@ -5,171 +5,292 @@ Object.defineProperty(exports, '__esModule', {
   value: true
 });
 var _bind = Function.prototype.bind;
+
+var _get2 = function get(_x6, _x7, _x8) { var _again = true; _function: while (_again) { var object = _x6, property = _x7, receiver = _x8; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x6 = parent; _x7 = property; _x8 = receiver; _again = true; desc = parent = undefined; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
+
 exports['default'] = miniCore;
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
 
-function miniCore(assets) {
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+function miniCore(constants) {
+
+  var resolving = {};
+  var resolved = [];
 
   var core = {
 
-    _values: {},
+    _parent: null,
 
-    _singletons: {},
+    _started: false,
 
-    _registry: {},
+    _providers: {},
 
-    _classes: {},
+    _configQueue: [],
 
-    resolve: resolve,
+    _providerQueue: [],
 
-    install: function install(id, fn) {
+    _runQueue: [],
 
-      this.value(id, invoke(null, fn));
+    _children: [],
 
+    _injector: {
+      has: function has(id) {
+        return core.has(id);
+      },
+      get: function get(id) {
+        return core.get(id);
+      },
+      invoke: invoke
+    },
+
+    has: function has(id) {
+      return !isUndefined(findProvider(id));
+    },
+
+    provide: function provide(id, fn) {
+      id.endsWith('Provider') || (id += 'Provider');
+      assertNotRegistered(id);
+      var _providers = this._providers;
+      var _injector = this._injector;
+
+      var provider = fn(_injector);
+      if (!isFunction(provider._get)) {
+        throw new MiniCoreError('"' + id + '" needs a "_get" method');
+      }
+      provider.id = id;
+      _providers[id] = provider;
       return this;
     },
 
-    singleton: function singleton(id, asset) {
-
-      this._singletons[id] = this._classes[id] = true;
-      register(id, asset);
-
-      return this;
-    },
-
-    value: function value(id, asset) {
+    constant: function constant(id, val) {
       var _this = this;
 
       if (isObject(id)) {
-        asset = id;
-        Object.keys(asset).forEach(function (id) {
-          return _this.value(id, asset[id]);
+        Object.keys(id).forEach(function (key) {
+          return _this.constant(key, id[key]);
         });
-      } else if (isString(id)) {
-        this._values[id] = true;
-        register(id, asset);
       } else {
-        throw new Error('"value" expects a string id and value or object');
+        assertNotRegistered(id);
+        this._providers[id] = valueProvider(id, val);
       }
-
       return this;
     },
 
-    factory: function factory(id, asset) {
+    value: function value(id, val) {
+      var _this2 = this;
 
-      register(id, asset);
-
+      if (isObject(id)) {
+        Object.keys(id).forEach(function (key) {
+          return _this2.value(key, id[key]);
+        });
+      } else {
+        assertNotRegistered(id);
+        this._providers[id] = null;
+        this._providerQueue.push(valueProvider(id, val));
+      }
       return this;
     },
 
-    'class': function _class(id, Asset) {
+    factory: function factory(id, fn) {
+      var options = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
 
-      this._classes[id] = true;
-      register(id, Asset);
-
+      assertNotRegistered(id);
+      fn._inject || (fn._inject = options.inject || []);
+      this._providers[id] = null;
+      this._providerQueue.push(factoryProvider(id, fn, options));
       return this;
+    },
+
+    'class': function _class(id, Class) {
+      var options = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+
+      Class._inject || (Class._inject = options.inject || []);
+      options.withNew = true;
+      return this.factory(id, Class, options);
+    },
+
+    get: function get(id) {
+      if (resolving[id]) {
+        var cycle = resolved.concat(id);
+        throw new MiniCoreError('Cyclic dependency "' + cycle.join(' -> ') + '"');
+      }
+      resolving[id] = true;
+      resolved.push(id);
+      var provider = findProvider(id, this);
+      if (!provider) {
+        throw new MiniCoreError('Dependency "' + id + '" not found');
+      }
+      var result = provider._get();
+      resolving[id] = false;
+      resolved.splice(0);
+      return result;
     },
 
     config: function config(fn) {
+      var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      invoke(null, fn);
-
+      fn._inject || (fn._inject = options.inject || []);
+      this._configQueue.push(fn);
       return this;
     },
 
-    use: function use(namespace, core) {
+    run: function run(fn) {
+      var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      if (isString(namespace)) {
-        namespace += '.';
-      } else if (isObject(namespace)) {
-        core = namespace;
-        namespace = '';
-      } else {
-        throw new Error('"use" expects a namespace and core or core only');
+      fn._inject || (fn._inject = options.inject || []);
+      this._runQueue.push(fn);
+      return this;
+    },
+
+    createChild: function createChild() {
+      var core = miniCore.apply(undefined, arguments);
+      core._parent = this;
+      this._children.push(core);
+      return core;
+    },
+
+    bootstrap: function bootstrap(fn) {
+      var root = this;
+      while (root._parent && !root._parent._started) {
+        root = root._parent;
       }
-
-      return merge(namespace, this, core);
+      root._bootstrap();
+      if (fn) invoke(fn);
     },
 
-    wrap: function wrap(id, fn) {
-
-      this.value(id, function () {
-        return invoke(null, fn);
+    _bootstrap: function _bootstrap() {
+      this._configure();
+      this._children.forEach(function (child) {
+        return child._configure();
       });
+      this._flushProviderQueue();
+      this._children.forEach(function (child) {
+        return child._flushProviderQueue();
+      });
+      this._flushRunQueue();
+      this._children.forEach(function (child) {
+        return child._flushRunQueue();
+      });
+    },
 
-      return this;
+    _configure: function _configure() {
+      var _configQueue = this._configQueue;
+
+      while (_configQueue.length) {
+        configure(_configQueue.shift());
+      }
+    },
+
+    _flushProviderQueue: function _flushProviderQueue() {
+      var _providerQueue = this._providerQueue;
+      var _providers = this._providers;
+
+      while (_providerQueue.length) {
+        var provider = _providerQueue.shift();
+        _providers[provider.id] = provider;
+      }
+    },
+
+    _flushRunQueue: function _flushRunQueue() {
+      var _runQueue = this._runQueue;
+
+      while (_runQueue.length) {
+        invoke(_runQueue.shift());
+      }
+      this._started = true;
     }
 
   };
 
-  return core.value(assets || {});
+  return core.constant(constants || {});
 
-  function resolve(id) {
-    var _registry = core._registry;
-    var _values = core._values;
-
-    var registered = _registry[id];
-
-    if (!registered) {
-      throw new Error('asset "' + id + '" is not registered.');
+  function assertNotRegistered(id) {
+    if (!isUndefined(core._providers[id])) {
+      throw new MiniCoreError('"' + id + '" has already been registered');
     }
-
-    if (_values[id]) return registered;
-
-    return invoke(id, registered);
   }
 
-  function invoke(id, fn) {
+  function invoke(fn) {
+    var options = arguments.length <= 1 || arguments[1] === undefined ? { withNew: false } : arguments[1];
 
-    if (fn._instance) return fn._instance;
-
-    var dependencies = (fn._inject || []).map(function (dep) {
-      return resolve(dep);
+    var Fn = fn;
+    var deps = (fn._inject || []).map(function (id) {
+      return core.get(id);
     });
-    var result = core._classes[id] ? new (_bind.apply(fn, [null].concat(_toConsumableArray(dependencies))))() : fn.apply(undefined, _toConsumableArray(dependencies));
-
-    if (core._singletons[id]) {
-      fn._instance = result;
-    }
-
-    return result;
+    return options.withNew ? new (_bind.apply(Fn, [null].concat(_toConsumableArray(deps))))() : fn.apply(undefined, _toConsumableArray(deps));
   }
 
-  function register(id, asset) {
-    var _registry = core._registry;
-
-    if (!isUndefined(_registry[id])) {
-      throw new Error('asset: ' + id + ' is already registered.');
-    }
-
-    _registry[id] = asset;
+  function valueProvider(id, val) {
+    return { id: id, _get: function _get() {
+        return val;
+      } };
   }
 
-  function merge(namespace, target, core) {
+  function factoryProvider(id, fn, options) {
+    var cache = options.cache;
+    var withNew = options.withNew;
 
-    var properties = ['_registry', '_singletons', '_values', '_classes'];
+    return {
+      id: id,
+      _cache: null,
+      _get: function _get() {
+        if (this._cache) return this._cache;
+        var result = invoke(fn, { withNew: withNew });
+        return cache ? this._cache = result : result;
+      }
+    };
+  }
 
-    properties.forEach(function (property) {
-      Object.keys(core[property]).reduce(function (target, key) {
-        target[property][namespace + key] = core[property][key];
-        return target;
-      }, target);
+  function findProvider(id) {
+    var host = core;
+    var provider = null;
+    while (host && !provider) {
+      provider = host._providers[id + 'Provider'] || host._providers[id];
+      host = host._parent;
+    }
+    return provider;
+  }
+
+  function configure(config) {
+    var deps = config._inject.map(function (id) {
+      var provider = findProvider(id, core);
+      if (!provider) {
+        var message = '"config" dependency "' + id + '" not found or illegal';
+        throw new MiniCoreError(message);
+      }
+      return id.endsWith('Provider') ? provider : provider._get();
     });
-
-    return target;
+    config.apply(undefined, _toConsumableArray(deps));
   }
 }
 
-function isUndefined(val) {
-  return typeof val === 'undefined';
+var MiniCoreError = (function (_Error) {
+  _inherits(MiniCoreError, _Error);
+
+  function MiniCoreError(message) {
+    _classCallCheck(this, MiniCoreError);
+
+    _get2(Object.getPrototypeOf(MiniCoreError.prototype), 'constructor', this).call(this, message);
+    Error.captureStackTrace(this, this.constructor);
+    this.message = '[MiniCoreError] ' + message;
+  }
+
+  return MiniCoreError;
+})(Error);
+
+function isUndefined(value) {
+  return typeof value === 'undefined';
 }
 
-function isString(val) {
-  return typeof val === 'string';
+function isObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isObject(val) {
-  return val != null && typeof val === 'object';
+function isFunction(value) {
+  return typeof value === 'function';
 }
 module.exports = exports['default'];
