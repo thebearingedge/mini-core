@@ -35,13 +35,12 @@ export default function miniCore(constants) {
     provide(id, fn) {
       id.endsWith('Provider') || (id += 'Provider');
       assertNotRegistered(id);
-      const { _providers, _injector } = this;
-      const provider = fn(_injector);
+      const provider = fn(this._injector);
       if (!isFunction(provider._get)) {
         throw new MiniCoreError(`"${id}" needs a "_get" method`);
       }
       provider.id = id;
-      _providers[id] = provider;
+      this._providers[id] = provider;
       return this;
     },
 
@@ -68,18 +67,17 @@ export default function miniCore(constants) {
       return this;
     },
 
-    factory(id, fn, options = {}) {
+    factory(id, fn, options = { inject: [], withNew: false, cache: false }) {
       assertNotRegistered(id);
-      fn._inject || (fn._inject = options.inject || []);
+      fn._inject || (fn._inject = options.inject);
       this._providers[id] = null;
       this._providerQueue.push(factoryProvider(id, fn, options));
       return this;
     },
 
-    class(id, Class, options = {}) {
-      Class._inject || (Class._inject = options.inject || []);
+    class(id, Fn, options = {}) {
       options.withNew = true;
-      return this.factory(id, Class, options);
+      return this.factory(id, Fn, options);
     },
 
     get(id) {
@@ -88,25 +86,25 @@ export default function miniCore(constants) {
         throw new MiniCoreError(`Cyclic dependency "${cycle.join(' -> ')}"`);
       }
       resolving[id] = true;
-      resolved.push(id);
       const provider = findProvider(id, this);
       if (!provider) {
         throw new MiniCoreError(`Dependency "${id}" not found`);
       }
+      resolved.push(id);
       const result = provider._get();
       resolving[id] = false;
       resolved.splice(0);
       return result;
     },
 
-    config(fn, options = {}) {
-      fn._inject || (fn._inject = options.inject || []);
+    config(fn, options = { inject: [] }) {
+      fn._inject || (fn._inject = options.inject);
       this._configQueue.push(fn);
       return this;
     },
 
-    run(fn, options = {}) {
-      fn._inject || (fn._inject = options.inject || []);
+    run(fn, options = { inject: [] }) {
+      fn._inject || (fn._inject = options.inject);
       this._runQueue.push(fn);
       return this;
     },
@@ -137,24 +135,21 @@ export default function miniCore(constants) {
     },
 
     _configure() {
-      const { _configQueue } = this;
-      while (_configQueue.length) {
-        configure(_configQueue.shift());
+      while (this._configQueue.length) {
+        configure(this._configQueue.shift());
       }
     },
 
     _flushProviderQueue() {
-      const { _providerQueue, _providers } = this;
-      while (_providerQueue.length) {
-        const provider = _providerQueue.shift();
-        _providers[provider.id] = provider;
+      while (this._providerQueue.length) {
+        const provider = this._providerQueue.shift();
+        this._providers[provider.id] = provider;
       }
     },
 
     _flushRunQueue() {
-      const { _runQueue } = this;
-      while (_runQueue.length) {
-        invoke(_runQueue.shift());
+      while (this._runQueue.length) {
+        invoke(this._runQueue.shift());
       }
       this._started = true;
     }
@@ -169,9 +164,9 @@ export default function miniCore(constants) {
     }
   }
 
-  function invoke(fn, options = { withNew: false }) {
+  function invoke(fn, options = { withNew: false, inject: [] }) {
     const Fn = fn;
-    const deps = (fn._inject || []).map(id => core.get(id));
+    const deps = (fn._inject || options.inject || []).map(id => core.get(id));
     return options.withNew ? new Fn(...deps) : fn(...deps);
   }
 
@@ -202,16 +197,16 @@ export default function miniCore(constants) {
     return provider;
   }
 
-  function configure(config) {
-    const deps = config._inject.map(id => {
+  function configure(configFn) {
+    const deps = configFn._inject.map(id => {
       const provider = findProvider(id, core);
       if (!provider) {
         const message = `"config" dependency "${id}" not found or illegal`;
         throw new MiniCoreError(message);
       }
-      return id.endsWith('Provider') ? provider : provider._get();
+      return provider.id.endsWith('Provider') ? provider : provider._get();
     });
-    config(...deps);
+    configFn(...deps);
   }
 
 }

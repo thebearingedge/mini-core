@@ -72,43 +72,6 @@ describe('miniCore', () => {
 
   });
 
-  describe('get(id)', () => {
-
-    it('throws if no local provider', () => {
-      const message = 'Dependency "foo" not found';
-      expect(() => core.get('foo')).to.throw(Error, message);
-    });
-
-    it('throws if no ancestor provider', () => {
-      const child = core.createChild();
-      const message = 'Dependency "foo" not found';
-      expect(() => child.get('foo')).to.throw(Error, message);
-    });
-
-    it('throws if a cycle is detected', () => {
-      core.provide('foo', injector => {
-        return { _get: () => injector.get('bar') };
-      });
-      core.provide('bar', injector => {
-        return { _get: () => injector.get('baz') };
-      });
-      core.provide('baz', injector => {
-        return { _get: () => injector.get('foo') };
-      });
-      const cyclic = () => core.get('foo');
-      const message = 'Cyclic dependency "foo -> bar -> baz -> foo"';
-      expect(cyclic).to.throw(Error, message);
-    });
-
-    it('resolves dependencies', () => {
-      core.provide('fooProvider', () => {
-        return { _get: () => 'bar' };
-      });
-      expect(core.get('foo')).to.equal('bar');
-    });
-
-  });
-
   describe('constant(id, val)', () => {
 
     it('registers a constant', () => {
@@ -212,6 +175,48 @@ describe('miniCore', () => {
     it('enqueues a run function', () => {
       core.run(() => {});
       expect(core._runQueue).to.have.property('length', 1);
+    });
+
+  });
+
+  describe('get(id)', () => {
+
+    it('throws if no local provider', () => {
+      const message = 'Dependency "foo" not found';
+      expect(() => core.get('foo')).to.throw(Error, message);
+    });
+
+    it('throws if no ancestor provider', () => {
+      const child = core.createChild();
+      const message = 'Dependency "foo" not found';
+      expect(() => child.get('foo')).to.throw(Error, message);
+    });
+
+    it('throws if a cycle is detected', () => {
+      core.provide('foo', injector => {
+        return { _get: () => injector.get('bar') };
+      });
+      core.provide('bar', injector => {
+        return { _get: () => injector.get('baz') };
+      });
+      core.provide('baz', injector => {
+        return { _get: () => injector.get('foo') };
+      });
+      const cyclic = () => core.get('foo');
+      const message = 'Cyclic dependency "foo -> bar -> baz -> foo"';
+      expect(cyclic).to.throw(Error, message);
+    });
+
+    it('resolves dependencies', () => {
+      core.constant('foo', 'bar');
+      core.provide('bazProvider', injector => {
+        return {
+          _get() {
+            return injector.invoke(dep => dep, { inject: ['foo'] });
+          }
+        };
+      });
+      expect(core.get('baz')).to.equal('bar');
     });
 
   });
