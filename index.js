@@ -39,7 +39,7 @@ export default function miniCore(constants) {
       if (!isFunction(provider._get)) {
         throw new MiniCoreError(`"${id}" needs a "_get" method`);
       }
-      provider.id = id;
+      provider._id = id;
       this._providers[id] = provider;
       return this;
     },
@@ -116,13 +116,14 @@ export default function miniCore(constants) {
       return core;
     },
 
-    bootstrap(fn) {
+    bootstrap(fn, options = { inject: [] }) {
       let root = this;
       while (root._parent && !root._parent._started) {
         root = root._parent;
       }
       root._bootstrap();
-      if (fn) invoke(fn);
+      options.withNew = false;
+      if (fn) invoke(fn, options);
     },
 
     _bootstrap() {
@@ -143,7 +144,7 @@ export default function miniCore(constants) {
     _flushProviderQueue() {
       while (this._providerQueue.length) {
         const provider = this._providerQueue.shift();
-        this._providers[provider.id] = provider;
+        this._providers[provider._id] = provider;
       }
     },
 
@@ -171,13 +172,13 @@ export default function miniCore(constants) {
   }
 
   function valueProvider(id, val) {
-    return { id, _get: () => val };
+    return { _id: id, _get: () => val };
   }
 
   function factoryProvider(id, fn, options) {
     const { cache, withNew } = options;
     return {
-      id,
+      _id: id,
       _cache: null,
       _get() {
         if (this._cache) return this._cache;
@@ -204,7 +205,7 @@ export default function miniCore(constants) {
         const message = `"config" dependency "${id}" not found or illegal`;
         throw new MiniCoreError(message);
       }
-      return provider.id.endsWith('Provider') ? provider : provider._get();
+      return provider._id.endsWith('Provider') ? provider : provider._get();
     });
     configFn(...deps);
   }

@@ -77,12 +77,13 @@ describe('miniCore', () => {
     it('registers a constant', () => {
       const foo = { bar: 'baz' };
       core.constant('foo', foo);
-      expect(core._providers.foo).to.have.property('id', 'foo');
+      expect(core._providers.foo).to.exist;
+      expect(core._providers.foo).to.have.property('_id', 'foo');
     });
 
     it('registers constants from an object by key', () => {
       core.constant({ foo: 'bar' });
-      expect(core._providers.foo).to.have.property('id', 'foo');
+      expect(core._providers.foo).to.have.property('_id', 'foo');
     });
 
   });
@@ -92,6 +93,7 @@ describe('miniCore', () => {
     it('provides a value', () => {
       const foo = { bar: 'baz' };
       core.value('foo', foo);
+      expect(core._providers.foo).not.to.exist;
       expect(core._providerQueue[0]._get()).to.equal(foo);
     });
 
@@ -99,7 +101,7 @@ describe('miniCore', () => {
       const values = { foo: 'bar', baz: 'qux' };
       core.value(values);
       expect(core._providerQueue.length).to.equal(2);
-      expect(core._providerQueue[0]).to.have.property('id', 'foo');
+      expect(core._providerQueue[0]).to.have.property('_id', 'foo');
     });
 
     it('throws if id is already used', () => {
@@ -115,7 +117,8 @@ describe('miniCore', () => {
     it('provides factories', () => {
       const foo = () => 'bar';
       core.factory('foo', foo);
-      expect(core._providerQueue[0]).to.have.property('id', 'foo');
+      expect(core._providers.foo).not.to.exist;
+      expect(core._providerQueue[0]).to.have.property('_id', 'foo');
       const resolved = core._providerQueue[0]._get();
       expect(resolved).to.equal('bar');
     });
@@ -140,7 +143,7 @@ describe('miniCore', () => {
         }
       }
       core.class('Foo', Foo);
-      expect(core._providerQueue[0]).to.have.property('id', 'Foo');
+      expect(core._providerQueue[0]).to.have.property('_id', 'Foo');
       const foo = core._providerQueue[0]._get();
       expect(foo instanceof Foo).to.equal(true);
     });
@@ -236,8 +239,7 @@ describe('miniCore', () => {
       const runSpy = sinon.spy();
       core.run(runSpy, { inject: ['baz', 'quux'] });
       const bootSpy = sinon.spy();
-      bootSpy._inject = ['foo', 'baz'];
-      core.bootstrap(bootSpy);
+      core.bootstrap(bootSpy, { inject: ['foo', 'baz'] });
       expect(config1Spy.calledOnce).to.equal(true);
       expect(config1Spy).to.have.been.calledWithExactly(fooProvider, 'grault');
       expect(config2Spy.calledOnce).to.equal(true);
