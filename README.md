@@ -1,227 +1,280 @@
 # mini-core
-A small application core with dependency resolution.
+A Dependency Injection framework.
 
-## Usage
+## Intro
+Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share application-wide logic or configuration across multiple features, one or more `main` methods can become unwieldy. A DI/IoC tool is handy for automating plumbing logic that more-or-less amounts to boilerplate.
 
-```javascript
-import miniCore from '@thebearingedge/mini-core';
+Such tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on user code.
 
-const core = miniCore();
-const foo = { bar: 'baz' };
+_Why **another** DI framework?_
 
-core.value('foo', foo);
+I wanted Inversion of Control I could... control. Also see features...
 
-const resolved = core.resolve('foo');
-
-assert.equal(resolved, foo);
-```
+## Features
+- Late bound object creation and dependency injection
+- Chainable, order-independent setup methods
+- Minimal intrusion on application code
+- Project structure agnostic
+- No configuration files.
 
 ## Creation
 
-Invoking `miniCore` returns a container object. Optionally, an object can be passed during creation. The object's values with be registered by key.
+A `core` object is created by calling `miniCore`. A set of [`constants`](#constantid-value-or-constantobject) may be passed during creation.
 ```javascript
-const core = miniCore({ foo: 'bar' });
+import miniCore from 'mini-core';
 
-assert.equal(core.resolve('foo'), 'bar');
+const emptyCore = miniCore();
+const loadedCore = miniCore({ foo: 'bar', baz: 'qux' });
 ```
 
-## Api
+## Registration API
 
-#### `value(id, someValue)`
-A string id and value may be passed to store an asset. Multiple id/value pairs can be registered at once using an object.
+#### `provide(id, fn)`
+A `core` object is essentially a registry of `providers`. Providers are simple or configurable objects that define what gets injected into consumers. To register a `provider`, pass a unique string identifier and function to `core.provide`. The function passed must return an object with at least a `_get` method.
 ```javascript
-core.value('foo', 'bar'); 
-core.value({ baz: 'qux', quux: 'grault' });
+core
+  .provide('foo', () => ({ _get: () => 2 + 2 }))
+  .get('foo'); // 4
+```
+Providers are largely an internal mechanism of Mini Core, but they can be useful for creating configurable dependencies. The above is a short introduction to them. More on providers later.
+
+#### `constant(id, value)` or `constant(object)`
+Static values can be registered to a `core` using `core.constant` by either passing a string identifier and value or a set of key/value pairs.
+```javascript
+core.constant('foo', 'bar');
+// or
+core.constant({ foo: 'bar' })
+  
+core.get('foo'); // "bar"
 ```
 
-#### `resolve(id)`
-Passing an `id` to `resolve` retrieves the corresponding value from `core`;
+_But a `core` is a registry of providers?_
+
+Correct. `core.constant('foo', 'bar')` creates and registers the following `provider`:
 ```javascript
-core.value('marco', () => console.log('polo'));
-
-const marco = core.resolve('marco');
-
-marco(); // "polo"
+{
+  _id: 'foo',
+  _get() {
+    return 'bar';
+  }
+}
 ```
 
-#### `install(id, fn)`
-A function can be used to register a dynamic value via `install`. The function argument is invoked and its return value is registered.
+#### `value(id, value)` or `value(object)`
+Very similar to `core.constant`, except that the `provider` created here is enqueued and inaccessible until _after_ the [configuration phase](#configuration-phase) of the `core` startup.
+
+#### `factory(id, fn, options)`
+A factory function can be registered to a `core` object with `core.factory`. Dependents on this factory will be injected with its return value. 
 ```javascript
-core.install('four', () => {
-  return 2 + 2;
+core
+  .factory('foo', () => ({ bar: 'baz' }), { withNew, cache, inject })
+  .bootstrap()
+  .get('foo'); // { bar: 'baz' }
+```
+Options: 
+ - `withNew: Boolean, default: false` the function will be called with `new` before its result is injected into dependents.
+ - `cache: Boolean, default: false` the function will only be called the first time a dependent needs the result. Subsequent dependency resolutions receive the cached result.
+ - `inject: Array[String], default []` an array of dependency identifiers. Given that they have been registered, the dependencies are resolved and passed to the function as arguments.
+
+Like `core.value`, a `provider` is created automatically and enqueued until _after_ the core's [configuration phase](#configuration-phase).
+
+The enqueued `provider` looks something like this:
+```javascript
+const { cache, withNew } = options;
+return {
+  _id: id,
+  _cache: null,
+  _get() {
+    if (this._cache) return this._cache;
+    const result = invoke(fn, { withNew });
+    return cache ? (this._cache = result) : result;
+  }
+};
+```
+
+#### `core.class(id, Fn, options)`
+Convenience method over `core.factory` that sets the `withNew` option to `true`.
+
+Example:
+```javascript
+class Foo {
+  constructor(bar, baz) {
+    this.bar = bar;
+    this.baz = baz;
+  }
+}
+
+core
+  .class('foo', Foo, { inject: ['bar', 'baz'] })
+  .bootstrap()
+  .get('foo') instanceof Foo; // true
+```
+
+#### Dependency Annotations
+At present, Mini Core does not automatically parse arguments lists to create dependency annotations. Instead, an array of string identifiers must be supplied along with the dependent function or class. So far we've seen this done with `options`. It is recommended that the dependency list be maintained in the source file of the dependent itself. An annotation can be added directly to the dependent function before registration.
+
+Example:
+```javascript
+class Foo {
+  constructor(bar, baz) {
+    // foo stuff...
+  }
+}
+
+Foo._inject = ['bar', 'baz'];
+
+export default Foo;
+```
+
+## Execution API
+
+#### `bootstrap(fn, options)`
+Once all dependencies have been registered to a `core` object, it can be started with `core.bootstrap`. `bootstrap` steps through the `core`'s startup phases before executing the **optional** function argument.
+
+Options:
+- `inject: Array[String]` an array of dependency identifiers. At this time, _all_ registered dependencies are available to inject.
+
+Examples:
+```javascript
+function main(foo, bar) {
+  alert(foo.greeting + bar.name);
+}
+
+main._inject = ['foo', 'bar'];
+
+core.bootstrap(main);
+```
+or
+```javascript
+core.bootstrap(program => program.run(), { inject: ['program'] });
+```
+
+Bootstrapping a `core` performs a few operations under the hood:
+
+#### Configuration Phase
+
+Providers created manually with `core.provide` (or automatically with `core.constant`) are registered immediately and can be injected into functions passed to `core.config`. In the case of manual providers, their entire definition is injected, whereas `constant` providers are resolved via a call to their `_get` method.
+
+Example:
+```javascript
+core
+  // registering the `question` constant
+  .constant('question', 'How many roads must a man walk down?')
+  // registering the `deepThought` provider
+  .provide('deepThought', () => {
+    let ultimateQuestion = null;
+    let ultimateAnswer = 42;
+    return {
+      setUltimateQuestion(question) {
+        ultimateQuestion = question;
+      },
+      _get() {
+        return { ultimateQuestion, ultimateAnswer };
+      }
+    };
+  })
+  // passing configuration to `core.config`
+  .config(deepThoughtConfig, { inject: ['deepThought', 'question'] });
+
+// configuration function to change the ultimate question
+function deepThoughtConfig(deepThoughtProvider, question) {
+  deepThoughtProvider.setUltimateQuestion(question);
+}
+```
+
+#### Provider Registration Phase
+
+After all `config` functions are run, all `providers` enqueued by calls to `value`, `factory`, and `class` are made available to inject into each other, the optional function passed to `bootstrap`, and functions passed to `core.run`. `providers` created manually will now have the results of their `_get` methods injected to dependents rather than their definitions.
+
+#### Run Phase
+
+Sometimes it is useful to break startup logic out into smaller, more discrete operations — especially if they are not interdependent. Before `core.bootstrap` is completed and its `optional` callback is called, any functions that have been passed to `core.run` are executed with dependencies injected. All registered dependencies are available to inject into `run` functions.
+
+Example:
+```javascript
+function subscribe(emitter) {
+  emitter.on('foo', () => alert('bar'));
+}
+
+subscribe._inject = ['emitter'];
+
+function publish(emitter) {
+  emitter.emit('foo');
+}
+
+publish._inject = ['emitter'];
+
+core
+  .class('emitter', EventEmitter, { cache: true });
+  .run(subscribe)
+  .bootstrap(publish);
+```
+
+## Providers and the Injector
+
+In general, manual creation of providers is mose useful for reusable functionality that needs to be configured differently from application to application.
+
+So far we have seen a couple of examples of manually created `providers`. At times it is useful to make a registered dependency configurable. The example above that defines `deepThoughtProvider` demonstrates how this can be done.
+
+A detail omitted from that example is that when a `provider` is registered, the function passed to `core.provide` is called with an `injector`.
+```javascript
+core.provide('foo', injector => {
+  return { _get() { /* use injector */} };
 });
+```
+At after the `core` Configuration Phase, the `injector` will have access to all dependencies registered to the core.
 
-console.log(core.resolve('four')); // 4
+#### `get(id)`
+`injector.get` can be used to resolve a registered dependency within the `_get` method of a provider, just as shown in previous examples using `core.get`
+
+Example:
+```javascript
+core
+  .value('foo', 'bar');
+  .provide('upperFoo', injector => {
+    return { _get: () => injector.get('foo').toUpperCase() };
+  })
+  .bootstrap()
+  .get('upperFoo'); // "BAR"
 ```
 
-#### `factory(id, fn)`
-A factory function can be registered with `factory`. Calling `resolve` invokes the function and its return value is produced.
+#### `has(id)`
+To check whether a dependency is available, `injector.has` can be passed an identifier.
+
+Example:
 ```javascript
-function makeFoo() {
-  return { bar: 'baz' };
-}
-
-core.factory('foo', makeFoo);
-
-const foo1 = core.resolve('foo');
-const foo2 = core.resolve('foo');
-
-assert.equal(foo1.bar, 'baz');
-assert.equal(foo2.bar, 'baz');
-assert.notEqual(foo1, foo2);
-```
-
-#### `class(id, Class)`
-Classes can be instantiated on demand after being registered with `class`.
-```javascript
-class Foo {
-  constructor() {
-    this.name = 'fooInstance';
-  }
-}
-
-core.class('foo', Foo);
-
-const foo1 = core.resolve('foo');
-const foo2 = core.resolve('foo');
-
-assert(foo1 instanceof Foo);
-assert.notEqual(foo1, foo2);
-```
-
-#### `singleton(id, Class)`
-If a single instance of a class should be resolved, the class can be registered with `singleton`.
-```javascript
-class Foo {
-  constructor() {
-    this.name = 'fooInstance';
-  }
-}
-
-core.singleton('foo', Foo);
-
-const foo1 = core.resolve('foo');
-const foo2 = core.resolve('foo');
-
-assert.equal(foo1.name, 'fooInstance');
-assert.equal(foo1, foo2);
-```
-
-## Dependency Resolution
-
-`miniCore` offers basic dependency resolution. This allows individual assets to be written in a testable manner. The below `Friends` repository is plain,  decoupled, and easy to test. 
-```javascript
-// Friends.js
-class Friends {
-  constructor(ajax, logger) {
-    this._ajax = ajax;
-    this._logger = logger;
-    this._endpoint = '/friends'
-  }
-  fetchAll() {
-    return this._ajax
-      .get(this._endpoint)
-      .then(response => response.body)
-      .catch(err => logger.log(err.message));
-  }
-}
-
-export default Friends;
-```
-Once `Friends` is sufficiently tested in isolation, it can be registered to the application core. An array of dependency id's must be added to `Friends` as a simple `_inject = []` property.
-```javascript
-Friends._inject = ['ajax', 'logger'];
-```
-This allows `miniCore` to look up dependencies during resolution.
-```javascript
-import miniCore from '@thebearingedge/mini-core';
-import ajax from './lib/ajax';
-import logger from './lib/logger';
-import Friends from './data/Friends';
-
-const core = miniCore({ ajax, logger });
-
-core.singleton('friends', Friends);
-
-const friends = core.resolve('friends'); // Friends is instantiated
-
-friends.fetchAll();
-```
-
-#### `wrap(id, fn)`
-
-A function can be stored in a `core` as a `value`. But if this function has dependencies it needs to be `wrapped`. The stored function's dependencies are not immediately resolved on _resolution_, but instead on _invokation_.
-```javascript
-const makeFoo = () => 'foo';
-core.factory('makeFoo', makeFoo);
-
-const delayed = dep => dep.toUppercase();
-delayed._inject = ['makeFoo'];
-core.wrap('delayed', delayed);
-
-const wrapped = core.resolve('delayed'); // makeFoo has not been called
-console.log(wrapped()); // "FOO"
-```
-
-## Core Building
-
-Using dependency resolution as explained above, it is possible to access registered assets for composition.
-
-The `config` method is supplied purely to access and manipulate objects in `core`. Functions passed to `core` can be written as separate modules, tagged with `_inject` and imported into the `core` wiring.
-
-```javascript
-import FancyRouter from 'fancy-router';
-import FancyView from 'fancy-view';
-import EventEmitter from 'events';
-import miniCore from '@thebearingedge/mini-core';
-
-const core = miniCore({ FancyView })
-    .singleton('emitter', EventEmitter)
-    .value('router', new FancyRouter({ /* router config */}));
-
-// myComponent could be a separate, testable module.
-function myComponent(FancyView, emitter) {
-  return FancyView.extend({
-    onClick() {
-      emitter.emit('fancy');
+core.provide('baz', injector => {
+  return {
+    _get() {
+      return injector.has('bestBaz')
+        ? injector.get('bestBaz')
+        : injector.get('okBaz');
     }
-  });
-}
-myComponent._inject = ['FancyView', 'emitter'];
-
-core.install('MyComponent', myComponent);
-
-// friendsRoute could be a separate module too
-// `config` simply pulls dependencies and invokes a function on them
-function friendsRoute(router, friends, MyComponent) {
-  router.addRoute({
-    path: '/friends',
-    data: {
-      friends() { return friends.fetchAll(); }
-    },
-    component: MyComponent
-  });
-}
-friendsRoute._inject = ['router', 'friends', 'MyComponent'];
-
-core.config(friendsRoute);
-
-core.resolve('router').navigateTo('/friends');
+  };
+});    
 ```
 
-## Motivation
+#### `invoke(fn, options)`
+The injector can be used to invoke a function with dependencies.
 
-In a time of "modular apps" and "reusable components", implicit dependencies are all over the place. If a component is reusable, it can just be plugged into your `core` so a bunch of `requires` and `imports` are eliminated. CommonJS and ES6 Modules are totally sweet for library authoring and distribution, but often they feel weird for application authoring.
+Example:
+```javascript
+core.provide('foo', injector => {
+  return {
+    get() {
+      return injector.invoke(bar => bar.getBaz(), { inject: ['bar'] });
+    }
+  }
+});
+```
 
-`miniCore` is not special. [This problem](https://gist.github.com/branneman/8048520) has been solved on other platforms and they do it using libraries. In JS land this has been territory for full-blown frameworks, but the general technique and benefits are not confined to them.
+----
 
-[IoC](https://en.wikipedia.org/wiki/Inversion_of_control) is not new. [DI](https://en.wikipedia.org/wiki/Dependency_injection) is not new. `miniCore` is pretty simplistic and can be used however you like, given the methods described above. Ideally, the only intrusion on your code is that `_inject` declarations are required for function dependency resolution (not needed for values or functions with no arguments). Otherwise your code can exist as you would have (hopefully) written it without `miniCore`; modular, composable, and testable.
-
-`miniCore` aims to be a plumbing library only. The entire object graph is left to the developer while lines and lines of manual object creation are taken care of.
-
-If you stumble upon `miniCore` and are interested in collaborating, please don't hesitate to file an issue or peruse the todo :).
+Shout-out to [Vojta Jina's `di`](https://github.com/angular/di.js).
 
 ## TODO
-- Document merge feature
-- Detect circular dependencies
-- Add more distribution formats
+- Finish and document parent/child `cores`
+- Refactor for extensibility
+- Plugin ideas
+    + Async dependency/core resolution
+    + Automatic annotation
