@@ -4,7 +4,7 @@
 import chai from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
-import miniCore from '../index';
+import miniCore from '../mini-core';
 
 chai.use(sinonChai);
 chai.config.truncateThreshold = 0;

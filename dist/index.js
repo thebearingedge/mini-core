@@ -6,7 +6,7 @@ Object.defineProperty(exports, '__esModule', {
 });
 var _bind = Function.prototype.bind;
 
-var _get2 = function get(_x6, _x7, _x8) { var _again = true; _function: while (_again) { var object = _x6, property = _x7, receiver = _x8; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x6 = parent; _x7 = property; _x8 = receiver; _again = true; desc = parent = undefined; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
+var _get2 = function get(_x7, _x8, _x9) { var _again = true; _function: while (_again) { var object = _x7, property = _x8, receiver = _x9; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x7 = parent; _x8 = property; _x9 = receiver; _again = true; desc = parent = undefined; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
 
 exports['default'] = miniCore;
 
@@ -23,9 +23,11 @@ function miniCore(constants) {
 
   var core = {
 
+    _started: false,
+
     _parent: null,
 
-    _started: false,
+    _children: [],
 
     _providers: {},
 
@@ -34,8 +36,6 @@ function miniCore(constants) {
     _providerQueue: [],
 
     _runQueue: [],
-
-    _children: [],
 
     _injector: {
       has: function has(id) {
@@ -52,17 +52,14 @@ function miniCore(constants) {
     },
 
     provide: function provide(id, fn) {
-      id.endsWith('Provider') || (id += 'Provider');
       assertNotRegistered(id);
-      var _providers = this._providers;
-      var _injector = this._injector;
-
-      var provider = fn(_injector);
+      id.endsWith('Provider') || (id += 'Provider');
+      var provider = fn(this._injector);
       if (!isFunction(provider._get)) {
         throw new MiniCoreError('"' + id + '" needs a "_get" method');
       }
-      provider.id = id;
-      _providers[id] = provider;
+      provider._id = id;
+      this._providers[id] = provider;
       return this;
     },
 
@@ -96,21 +93,20 @@ function miniCore(constants) {
     },
 
     factory: function factory(id, fn) {
-      var options = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+      var options = arguments.length <= 2 || arguments[2] === undefined ? { inject: [], withNew: false, cache: false } : arguments[2];
 
       assertNotRegistered(id);
-      fn._inject || (fn._inject = options.inject || []);
+      fn._inject || (fn._inject = options.inject);
       this._providers[id] = null;
       this._providerQueue.push(factoryProvider(id, fn, options));
       return this;
     },
 
-    'class': function _class(id, Class) {
+    'class': function _class(id, Fn) {
       var options = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
 
-      Class._inject || (Class._inject = options.inject || []);
       options.withNew = true;
-      return this.factory(id, Class, options);
+      return this.factory(id, Fn, options);
     },
 
     get: function get(id) {
@@ -119,11 +115,11 @@ function miniCore(constants) {
         throw new MiniCoreError('Cyclic dependency "' + cycle.join(' -> ') + '"');
       }
       resolving[id] = true;
-      resolved.push(id);
       var provider = findProvider(id, this);
       if (!provider) {
         throw new MiniCoreError('Dependency "' + id + '" not found');
       }
+      resolved.push(id);
       var result = provider._get();
       resolving[id] = false;
       resolved.splice(0);
@@ -131,17 +127,17 @@ function miniCore(constants) {
     },
 
     config: function config(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
 
-      fn._inject || (fn._inject = options.inject || []);
+      fn._inject || (fn._inject = options.inject);
       this._configQueue.push(fn);
       return this;
     },
 
     run: function run(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
 
-      fn._inject || (fn._inject = options.inject || []);
+      fn._inject || (fn._inject = options.inject);
       this._runQueue.push(fn);
       return this;
     },
@@ -154,54 +150,51 @@ function miniCore(constants) {
     },
 
     bootstrap: function bootstrap(fn) {
+      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
+
       var root = this;
       while (root._parent && !root._parent._started) {
         root = root._parent;
       }
       root._bootstrap();
-      if (fn) invoke(fn);
+      options.withNew = false;
+      if (fn) invoke(fn, options);
+      return this;
     },
 
     _bootstrap: function _bootstrap() {
       this._configure();
-      this._children.forEach(function (child) {
-        return child._configure();
-      });
       this._flushProviderQueue();
-      this._children.forEach(function (child) {
-        return child._flushProviderQueue();
-      });
       this._flushRunQueue();
-      this._children.forEach(function (child) {
-        return child._flushRunQueue();
-      });
     },
 
     _configure: function _configure() {
-      var _configQueue = this._configQueue;
-
-      while (_configQueue.length) {
-        configure(_configQueue.shift());
+      while (this._configQueue.length) {
+        configure(this._configQueue.shift());
       }
+      this._children.forEach(function (child) {
+        return child._configure();
+      });
     },
 
     _flushProviderQueue: function _flushProviderQueue() {
-      var _providerQueue = this._providerQueue;
-      var _providers = this._providers;
-
-      while (_providerQueue.length) {
-        var provider = _providerQueue.shift();
-        _providers[provider.id] = provider;
+      while (this._providerQueue.length) {
+        var provider = this._providerQueue.shift();
+        this._providers[provider._id] = provider;
       }
+      this._children.forEach(function (child) {
+        return child._flushProviderQueue();
+      });
     },
 
     _flushRunQueue: function _flushRunQueue() {
-      var _runQueue = this._runQueue;
-
-      while (_runQueue.length) {
-        invoke(_runQueue.shift());
+      while (this._runQueue.length) {
+        invoke(this._runQueue.shift());
       }
       this._started = true;
+      this._children.forEach(function (child) {
+        return child._flushRunQueue();
+      });
     }
 
   };
@@ -215,17 +208,17 @@ function miniCore(constants) {
   }
 
   function invoke(fn) {
-    var options = arguments.length <= 1 || arguments[1] === undefined ? { withNew: false } : arguments[1];
+    var options = arguments.length <= 1 || arguments[1] === undefined ? { withNew: false, inject: [] } : arguments[1];
 
     var Fn = fn;
-    var deps = (fn._inject || []).map(function (id) {
+    var deps = (fn._inject || options.inject || []).map(function (id) {
       return core.get(id);
     });
     return options.withNew ? new (_bind.apply(Fn, [null].concat(_toConsumableArray(deps))))() : fn.apply(undefined, _toConsumableArray(deps));
   }
 
   function valueProvider(id, val) {
-    return { id: id, _get: function _get() {
+    return { _id: id, _get: function _get() {
         return val;
       } };
   }
@@ -235,7 +228,7 @@ function miniCore(constants) {
     var withNew = options.withNew;
 
     return {
-      id: id,
+      _id: id,
       _cache: null,
       _get: function _get() {
         if (this._cache) return this._cache;
@@ -255,16 +248,16 @@ function miniCore(constants) {
     return provider;
   }
 
-  function configure(config) {
-    var deps = config._inject.map(function (id) {
+  function configure(configFn) {
+    var deps = configFn._inject.map(function (id) {
       var provider = findProvider(id, core);
       if (!provider) {
         var message = '"config" dependency "' + id + '" not found or illegal';
         throw new MiniCoreError(message);
       }
-      return id.endsWith('Provider') ? provider : provider._get();
+      return provider._id.endsWith('Provider') ? provider : provider._get();
     });
-    config.apply(undefined, _toConsumableArray(deps));
+    configFn.apply(undefined, _toConsumableArray(deps));
   }
 }
 
