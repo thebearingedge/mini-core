@@ -65,8 +65,10 @@ function makeFoo() {
   return { foo: 'bar' };
 }
 
-core.factory('foo', makeFoo);
-core.get('foo'); // { foo: 'bar' }
+core
+  .factory('foo', makeFoo)
+  .bootstrap()
+  .get('foo'); // { foo: 'bar' }
 ```
 Options: 
  - `withNew: Boolean` the function will be called with `new` before its result is injected into dependents
@@ -100,9 +102,10 @@ class Foo {
   }
 }
 
-core.class('foo', Foo, { inject: ['bar', 'baz'] });
-
-core.get('foo') instanceof Foo; // true
+core
+  .class('foo', Foo, { inject: ['bar', 'baz'] })
+  .bootstrap()
+  .get('foo') instanceof Foo; // true
 ```
 
 #### Dependency Annotations
@@ -152,30 +155,29 @@ Providers created manually with `core.provide` (or automatically with `core.cons
 
 Example:
 ```javascript
-// registering the `ultimateAnswer` constant
-core.constant('question', 'How many roads must a man walk down?');
-
-// registering the `deepThought` provider
-core.provide('deepThought', () => {
-  let ultimateQuestion = null;
-  let ultimateAnswer = 42;
-  return {
-    setUltimateQuestion(question) {
-      ultimateQuestion = question;
-    },
-    _get() {
-      return { ultimateQuestion, ultimateAnswer };
-    }
-  };
-});
+core
+  // registering the `question` constant
+  .constant('question', 'How many roads must a man walk down?')
+  // registering the `deepThought` provider
+  .provide('deepThought', () => {
+    let ultimateQuestion = null;
+    let ultimateAnswer = 42;
+    return {
+      setUltimateQuestion(question) {
+        ultimateQuestion = question;
+      },
+      _get() {
+        return { ultimateQuestion, ultimateAnswer };
+      }
+    };
+  })
+  // passing configuration to `core.config`
+  .config(deepThoughtConfig, { inject: ['deepThought', 'question'] });
 
 // configuration function to change the ultimate question
 function deepThoughtConfig(deepThoughtProvider, question) {
   deepThoughtProvider.setUltimateQuestion(question);
 }
-
-// passing configuration to `core.config`
-core.config(deepThoughtConfig, { inject: ['deepThought', 'question'] });
 ```
 
 #### Provider Registration Phase
@@ -188,15 +190,16 @@ Sometimes it is useful to break startup logic out into smaller, more discrete op
 
 Example:
 ```javascript
-core.class('eventBus', EventEmitter, { cache: true });
-
-function subscribe(eventBus) {
-  eventBus.on('foo', () => alert('bar'));
+function subscribe(emitter) {
+  emitter.on('foo', () => alert('bar'));
 }
 
-subscribe._inject = ['eventBus'];
+subscribe._inject = ['emitter'];
 
-core.run(subscribe);
-
-core.bootstrap(eventBus => eventBus.emit('foo'), { inject: ['eventBus'] });
+core
+  .class('emitter', EventEmitter, { cache: true });
+  .run(subscribe)
+  .bootstrap(emitter => emitter.emit('foo'), { inject: ['emitter'] });
 ```
+
+## More on Manual Providers
