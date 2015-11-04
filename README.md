@@ -212,7 +212,7 @@ core
 
 ## Providers and the Injector
 
-In general, manual creation of providers is mose useful for reusable functionality that needs to be configured differently from application to application.
+In general, manual creation of providers is most useful for reusable functionality that needs to be configured differently from application to application.
 
 So far we have seen a couple of examples of manually created `providers`. The above `deepThoughtProvider` is a very basic example.
 
