@@ -17,7 +17,7 @@ describe('miniCore', () => {
 
   beforeEach(() => core = miniCore());
 
-  describe('provide(id, providerFactory)', () => {
+  describe('provide(id, fn)', () => {
 
     it('registers a provider', () => {
       const bazProvider = injector => {
@@ -112,7 +112,7 @@ describe('miniCore', () => {
 
   });
 
-  describe('factory(id, fn, options, deps)', () => {
+  describe('factory(id, fn, options)', () => {
 
     it('provides factories', () => {
       const foo = () => 'bar';
@@ -134,7 +134,7 @@ describe('miniCore', () => {
 
   });
 
-  describe('class(id, fn, options, deps)', () => {
+  describe('class(id, fn, options)', () => {
 
     it('provides classes', () => {
       class Foo {
@@ -164,7 +164,7 @@ describe('miniCore', () => {
 
   });
 
-  describe('config(fn)', () => {
+  describe('config(fn, options)', () => {
 
     it('enqueues a config function', () => {
       core.config(() => {});
@@ -173,7 +173,7 @@ describe('miniCore', () => {
 
   });
 
-  describe('run(fn)', () => {
+  describe('run(fn, options)', () => {
 
     it('enqueues a run function', () => {
       core.run(() => {});
@@ -224,7 +224,7 @@ describe('miniCore', () => {
 
   });
 
-  describe('bootstrap(fn)', () => {
+  describe('bootstrap(fn, options)', () => {
 
     it('flushes configs, providers, runs, starts core, and calls fn', () => {
       const fooProvider = { _get: () => 'bar' };

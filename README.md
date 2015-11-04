@@ -1,10 +1,10 @@
-# mini-core ![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)
+# mini-core [![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)](https://travis-ci.org/thebearingedge/mini-core) [![Coverage Status](https://coveralls.io/repos/thebearingedge/mini-core/badge.svg)](https://coveralls.io/r/thebearingedge/mini-core)
 A Dependency Injection framework.
 
 ## Intro
-Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share application-wide logic or configuration across multiple features, one or more `main` methods can become unwieldy. A DI/IoC tool is handy for automating plumbing logic that more-or-less amounts to boilerplate.
+Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share application-wide logic or configuration across multiple features, one or more `main` methods can become unwieldy. A DI/IoC container is handy for automating plumbing logic that more-or-less amounts to boilerplate.
 
-Such tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on user code.
+DI/IoC tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on user code.
 
 _Why **another** DI framework?_
 
