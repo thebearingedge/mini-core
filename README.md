@@ -11,7 +11,7 @@ _Why **another** DI framework?_
 I wanted Inversion of Control I could... control. Also see features...
 
 ## Features
-- Late bound object creation and dependency injection
+- Lazy object creation
 - Chainable, order-independent setup methods
 - Minimal intrusion on application code
 - Project structure agnostic
@@ -214,18 +214,18 @@ core
 
 In general, manual creation of providers is mose useful for reusable functionality that needs to be configured differently from application to application.
 
-So far we have seen a couple of examples of manually created `providers`. At times it is useful to make a registered dependency configurable. The example above that defines `deepThoughtProvider` demonstrates how this can be done.
+So far we have seen a couple of examples of manually created `providers`. The above `deepThoughtProvider` is a very basic example.
 
-A detail omitted from that example is that when a `provider` is registered, the function passed to `core.provide` is called with an `injector`.
+A detail omitted from that example is that when a `provider` is registered, the function passed to `core.provide` is actually passed an `injector`.
 ```javascript
 core.provide('foo', injector => {
   return { _get() { /* use injector */} };
 });
 ```
-At after the `core` Configuration Phase, the `injector` will have access to all dependencies registered to the core.
+After the `core` Configuration Phase, the `injector` will have access to all dependencies registered to the core, so it can be used to access dependencies at runtime.
 
 #### `get(id)`
-`injector.get` can be used to resolve a registered dependency within the `_get` method of a provider, just as shown in previous examples using `core.get`
+`injector.get` can be used to resolve a registered dependency, just as shown in previous examples using `core.get`
 
 Example:
 ```javascript
