@@ -1,4 +1,4 @@
-# mini-core [![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)](https://travis-ci.org/thebearingedge/mini-core) [![Coverage Status](https://coveralls.io/repos/thebearingedge/mini-core/badge.svg)](https://coveralls.io/r/thebearingedge/mini-core)
+# mini-core [![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)](https://travis-ci.org/thebearingedge/mini-core) [![Coverage Status](https://coveralls.io/repos/thebearingedge/mini-core/badge.svg?branch=master&service=github)](https://coveralls.io/github/thebearingedge/mini-core?branch=master)
 A Dependency Injection framework.
 
 ## Intro
