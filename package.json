@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "./node_modules/.bin/jshint && mocha --compilers js:babel/register",
-    "tdd": "./node_modules/.bin/mocha -w --compilers js:babel/register",
     "cover": "./node_modules/.bin/babel-node ./node_modules/.bin/babel-istanbul cover _mocha",
+    "tdd": "./node_modules/.bin/mocha -w --compilers js:babel/register",
     "build": "./node_modules/.bin/babel mini-core.js -o dist/index.js",
     "prepublish": "npm test && npm run build"
   },
@@ -16,8 +16,15 @@
   },
   "author": "Tim Davis",
   "keywords": [
-    "ioc", "container", "di", "dependency injection", "core", "sandbox",
-    "registry", "inversion", "control"
+    "ioc",
+    "container",
+    "di",
+    "dependency injection",
+    "core",
+    "sandbox",
+    "registry",
+    "inversion",
+    "control"
   ],
   "license": "MIT",
   "bugs": {
@@ -25,12 +32,13 @@
   },
   "homepage": "https://github.com/thebearingedge/mini-core#readme",
   "devDependencies": {
-    "babel": "^5.8.23",
-    "babel-istanbul": "^0.4.0",
-    "chai": "^3.4.0",
-    "jshint": "^2.8.0",
-    "mocha": "^2.3.3",
-    "sinon": "^1.17.2",
-    "sinon-chai": "^2.8.0"
+    "babel": "5.8.23",
+    "babel-istanbul": "0.4.0",
+    "chai": "3.4.0",
+    "coveralls": "2.11.4",
+    "jshint": "2.8.0",
+    "mocha": "2.3.3",
+    "sinon": "1.17.2",
+    "sinon-chai": "2.8.0"
   }
 }

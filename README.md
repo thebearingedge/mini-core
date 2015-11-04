@@ -1,4 +1,4 @@
-# mini-core
+# mini-core ![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)
 A Dependency Injection framework.
 
 ## Intro
