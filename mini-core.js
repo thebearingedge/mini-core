@@ -22,25 +22,21 @@ export default function miniCore(constants) {
 
     _runQueue: [],
 
-    _injector: {
-      has: id => core.has(id),
-      get: id => core.get(id),
-      invoke
-    },
-
     has(id) {
       return !isUndefined(findProvider(id));
     },
 
-    provide(id, fn) {
+    provide(id, fn, options = { inject: [] }) {
       assertNotRegistered(id);
-      id.endsWith('Provider') || (id += 'Provider');
-      const provider = fn(this._injector);
+      const _id = id.endsWith('Provider') ? id : id + 'Provider';
+      const provider = invoke(fn, options);
       if (!isFunction(provider._get)) {
-        throw new MiniCoreError(`"${id}" needs a "_get" method`);
+        throw new MiniCoreError(`"${_id}" needs a "_get" method`);
       }
-      provider._id = id;
-      this._providers[id] = provider;
+      const _inject = provider._get._inject || [];
+      const _get = provider._get.bind(provider);
+      Object.assign(provider, { _id, _inject, _get });
+      this._providers[_id] = provider;
       return this;
     },
 
@@ -80,6 +76,25 @@ export default function miniCore(constants) {
       return this.factory(id, Fn, options);
     },
 
+    wrap(fn, options = { inject: [], withNew: false }) {
+      const wrapped = options.withNew
+        ? class Fn extends fn {
+            constructor() {
+              const deps = (options.inject || []).map(id => core.get(id));
+              const args = deps.concat(...arguments);
+              super(...args);
+            }
+          }
+        : () => invoke(fn, options);
+      Object.defineProperty(wrapped, 'name', {
+        writable: false,
+        enumerable: false,
+        configurable: true,
+        value: fn.name
+      });
+      return wrapped;
+    },
+
     get(id) {
       if (resolving[id]) {
         const cycle = resolved.concat(id);
@@ -91,7 +106,7 @@ export default function miniCore(constants) {
         throw new MiniCoreError(`Dependency "${id}" not found`);
       }
       resolved.push(id);
-      const result = provider._get();
+      const result = invoke(provider._get);
       resolving[id] = false;
       resolved.splice(0);
       return result;
@@ -158,7 +173,13 @@ export default function miniCore(constants) {
 
   };
 
-  return core.constant(constants || {});
+  return core
+    .constant('injector', {
+      invoke,
+      has: id => core.has(id),
+      get: id => core.get(id)
+    })
+    .constant(constants || {});
 
   function assertNotRegistered(id) {
     if (!isUndefined(core._providers[id])) {
@@ -206,7 +227,9 @@ export default function miniCore(constants) {
         const message = `"config" dependency "${id}" not found or illegal`;
         throw new MiniCoreError(message);
       }
-      return provider._id.endsWith('Provider') ? provider : provider._get();
+      return provider._id.endsWith('Provider')
+        ? provider
+        : invoke(provider._get);
     });
     configFn(...deps);
   }

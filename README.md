@@ -31,7 +31,7 @@ const loadedCore = miniCore({ foo: 'bar', baz: 'qux' });
 
 ## Registration API
 
-#### `provide(id, fn)`
+#### `provide(id, fn, options)`
 A `core` object is essentially a registry of `providers`. Providers are simple or configurable objects that define what gets injected into consumers. To register a `provider`, pass a unique string identifier and function to `core.provide`. The function passed must return an object with at least a `_get` method.
 ```javascript
 core
@@ -39,6 +39,9 @@ core
   .get('foo'); // 4
 ```
 Providers are largely an internal mechanism of Mini Core, but they can be useful for creating configurable dependencies. The above is a short introduction to them. More on providers later.
+
+Options:
+- `inject: Array[String], default []` an array of dependency identifiers. Given that they have been registered, the dependencies are resolved and passed to the function as arguments.
 
 #### `constant(id, value)` or `constant(object)`
 Static values can be registered to a `core` using `core.constant` by either passing a string identifier and value or a set of key/value pairs.
@@ -212,7 +215,7 @@ core
   .bootstrap(publish);
 ```
 
-## Providers and the Injector
+## The Injector
 
 In general, manual creation of providers is most useful for reusable functionality that needs to be configured differently from application to application.
 

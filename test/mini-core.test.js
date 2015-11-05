@@ -37,9 +37,9 @@ describe('miniCore', () => {
 
     it('knows if a local provider is registered', () => {
       core.constant('foo', 'bar');
-      core.provide('bazProvider', (injector) => {
+      core.provide('bazProvider', injector => {
         return { _get: () => injector.has('foo') };
-      });
+      }, { inject: ['injector'] });
       expect(core.get('baz')).to.equal(true);
     });
 
@@ -48,7 +48,7 @@ describe('miniCore', () => {
       const child = core.createChild();
       child.provide('quuxProvider', injector => {
         return { _get: () => injector.has('baz') };
-      });
+      }, { inject: ['injector'] });
       expect(child.get('quux')).to.equal(true);
     });
 
@@ -56,7 +56,7 @@ describe('miniCore', () => {
       const foo = () => 'bar';
       core.provide('bazProvider', injector => {
         return { _get: () => injector.invoke(foo) };
-      });
+      }, { inject: ['injector'] });
       expect(core.get('baz')).to.equal('bar');
     });
 
@@ -164,6 +164,44 @@ describe('miniCore', () => {
 
   });
 
+  describe('wrap(fn, options)', () => {
+
+    it('wraps functions', () => {
+      const wrapped = core.wrap(() => 'foo');
+      expect(wrapped()).to.equal('foo');
+    });
+
+    it('wraps classes', () => {
+      class Foo {}
+      const Wrapped = core.wrap(Foo, { withNew: true });
+      expect(new Wrapped() instanceof Foo).to.equal(true);
+    });
+
+    it('wraps functions for injection', () => {
+      const fooSpy = sinon.spy(() => 'bar');
+      core.provide('foo', () => ({ _get: fooSpy }));
+      function upperCaser(foo) { return foo.toUpperCase(); }
+      const wrapped = core.wrap(upperCaser, { inject: ['foo'] });
+      expect(wrapped.name).to.equal('upperCaser');
+      const result = wrapped();
+      expect(result).to.equal('BAR');
+    });
+
+    it('wraps classes for injection', () => {
+      const fooSpy = sinon.spy(() => 'bar');
+      core.provide('foo', () => ({ _get: fooSpy }));
+      class Baz {
+        constructor(foo) {
+          this.foo = foo;
+        }
+      }
+      const Wrapped = core.wrap(Baz, { inject: ['foo'], withNew: true });
+      expect(Wrapped.name).to.equal('Baz');
+      const baz = new Wrapped();
+      expect(baz.foo).to.equal('bar');
+    });
+  });
+
   describe('config(fn, options)', () => {
 
     it('enqueues a config function', () => {
@@ -198,13 +236,13 @@ describe('miniCore', () => {
     it('throws if a cycle is detected', () => {
       core.provide('foo', injector => {
         return { _get: () => injector.get('bar') };
-      });
+      }, { inject: ['injector'] });
       core.provide('bar', injector => {
         return { _get: () => injector.get('baz') };
-      });
+      }, { inject: ['injector'] });
       core.provide('baz', injector => {
         return { _get: () => injector.get('foo') };
-      });
+      }, { inject: ['injector'] });
       const cyclic = () => core.get('foo');
       const message = 'Cyclic dependency "foo -> bar -> baz -> foo"';
       expect(cyclic).to.throw(Error, message);
@@ -218,7 +256,7 @@ describe('miniCore', () => {
             return injector.invoke(dep => dep, { inject: ['foo'] });
           }
         };
-      });
+      }, { inject: ['injector'] });
       expect(core.get('baz')).to.equal('bar');
     });
 
