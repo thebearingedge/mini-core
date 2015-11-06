@@ -4,7 +4,7 @@ A Dependency Injection framework.
 [![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)](https://travis-ci.org/thebearingedge/mini-core) [![Coverage Status](https://coveralls.io/repos/thebearingedge/mini-core/badge.svg?branch=master&service=github)](https://coveralls.io/github/thebearingedge/mini-core?branch=master) [![Code Climate](https://codeclimate.com/github/thebearingedge/mini-core/badges/gpa.svg)](https://codeclimate.com/github/thebearingedge/mini-core)
 
 ## Intro
-Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share application-wide logic or configuration across multiple features, one or more `main` methods can become unwieldy. A DI container is handy for automating plumbing logic that more-or-less amounts to boilerplate. What's more, every component of the application becomes a plugin.
+Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share logic across multiple features, one or more `main` methods can become unwieldy. A DI container is handy for automating plumbing logic that more-or-less amounts to boilerplate. What's more, every component of the application becomes a plugin.
 
 DI tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on application code.
 
@@ -17,7 +17,7 @@ DI tools can range from simple eager-loading service locator libraries to very s
 
 ## Creation
 
-A `core` object is created by calling `miniCore`. A set of [`constants`](#constantid-value-or-constantobject) may be passed during creation.
+A `core` object is created by calling `miniCore`. A set of [`constants`](#constantid-value-or-constant-id-value-id-value-) may be passed during creation.
 ```javascript
 import miniCore from 'mini-core';
 
