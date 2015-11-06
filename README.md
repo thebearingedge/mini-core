@@ -4,24 +4,20 @@ A Dependency Injection framework.
 [![Build Status](https://travis-ci.org/thebearingedge/mini-core.svg?branch=master)](https://travis-ci.org/thebearingedge/mini-core) [![Coverage Status](https://coveralls.io/repos/thebearingedge/mini-core/badge.svg?branch=master&service=github)](https://coveralls.io/github/thebearingedge/mini-core?branch=master) [![Code Climate](https://codeclimate.com/github/thebearingedge/mini-core/badges/gpa.svg)](https://codeclimate.com/github/thebearingedge/mini-core)
 
 ## Intro
-Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share application-wide logic or configuration across multiple features, one or more `main` methods can become unwieldy. A DI/IoC container is handy for automating plumbing logic that more-or-less amounts to boilerplate.
+Modular code has good separation of concerns and explicit dependencies — dependencies that expose an API at the appropriate level of abstraction. But at some point an application has to be wired together. This can be accomplished via a `main` method that calls, instantiates, configures, and creates things to resolve a dependency graph into a running application. Within a small app a `main` method is the simplest and best approach. But for larger applications that need to share logic across multiple features, one or more `main` methods can become unwieldy. A DI container is handy for automating plumbing logic that more-or-less amounts to boilerplate. What's more, every component of the application becomes a plugin.
 
-DI/IoC tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on user code.
-
-_Why **another** DI framework?_
-
-I wanted Inversion of Control I could... control. Also see features...
+DI tools can range from simple eager-loading service locator libraries to very sophisticated frameworks that rely heavily on project directory structure and configuration files. Mini Core tries to land in the middle by offering just enough functionality to cleanly manage dependency graphs while encroaching as little as possible on application code.
 
 ## Features
 - Lazy object creation
-- Chainable, order-independent setup methods
+- Chainable, order-independent registration methods
 - Minimal intrusion on application code
 - Project structure agnostic
 - No configuration files.
 
 ## Creation
 
-A `core` object is created by calling `miniCore`. A set of [`constants`](#constantid-value-or-constantobject) may be passed during creation.
+A `core` object is created by calling `miniCore`. A set of [`constants`](#constantid-value-or-constant-id-value-id-value-) may be passed during creation.
 ```javascript
 import miniCore from 'mini-core';
 
@@ -31,47 +27,44 @@ const loadedCore = miniCore({ foo: 'bar', baz: 'qux' });
 
 ## Registration API
 
-#### `provide(id, fn)`
+#### `provide(id, fn, { inject: [] })`
 A `core` object is essentially a registry of `providers`. Providers are simple or configurable objects that define what gets injected into consumers. To register a `provider`, pass a unique string identifier and function to `core.provide`. The function passed must return an object with at least a `_get` method.
 ```javascript
 core
   .provide('foo', () => ({ _get: () => 2 + 2 }))
-  .get('foo'); // 4
+  .bootstrap(foo => console.log(foo), { inject: ['foo'] }); // 4
 ```
 Providers are largely an internal mechanism of Mini Core, but they can be useful for creating configurable dependencies. The above is a short introduction to them. More on providers later.
 
-#### `constant(id, value)` or `constant(object)`
+Options:
+- `inject: Array[String], default []` an array of dependency identifiers. Given that they have been registered, the dependencies are resolved and passed to the function as arguments.
+
+#### `constant(id, value)` or `constant({ id: value, id´: value´ })`
 Static values can be registered to a `core` using `core.constant` by either passing a string identifier and value or a set of key/value pairs.
 ```javascript
 core.constant('foo', 'bar');
 // or
 core.constant({ foo: 'bar' })
   
-core.get('foo'); // "bar"
+core.bootstrap(foo => console.log(foo), { inject: ['foo'] }); // "bar"
 ```
 
 _But a `core` is a registry of providers?_
 
 Correct. `core.constant('foo', 'bar')` creates and registers the following `provider`:
 ```javascript
-{
-  _id: 'foo',
-  _get() {
-    return 'bar';
-  }
-}
+{ _id: 'foo', _get: () => 'bar' }
 ```
 
 #### `value(id, value)` or `value(object)`
 Very similar to `core.constant`, except that the `provider` created here is enqueued and inaccessible until _after_ the [configuration phase](#configuration-phase) of the `core` startup.
 
-#### `factory(id, fn, options)`
+#### `factory(id, fn, { inject: [], cache: false, withNew: false })`
 A factory function can be registered to a `core` object with `core.factory`. Dependents on this factory will be injected with its return value. 
 ```javascript
 core
   .factory('foo', () => ({ bar: 'baz' }), { withNew, cache, inject })
-  .bootstrap()
-  .get('foo'); // { bar: 'baz' }
+  .bootstrap(foo => console.log(foo), { inject: ['foo'] }); // { bar: 'baz' }
 ```
 Options: 
  - `withNew: Boolean, default: false` the function will be called with `new` before its result is injected into dependents.
@@ -94,7 +87,7 @@ return {
 };
 ```
 
-#### `core.class(id, Fn, options)`
+#### `core.class(id, Fn, { inject: [], cache: false })`
 Convenience method over `core.factory` that sets the `withNew` option to `true`.
 
 Example:
@@ -108,18 +101,17 @@ class Foo {
 
 core
   .class('foo', Foo, { inject: ['bar', 'baz'] })
-  .bootstrap()
-  .get('foo') instanceof Foo; // true
+  .bootstrap(foo => console.log(foo instanceof Foo), { inject: ['foo']}); // true
 ```
 
 #### Dependency Annotations
-At present, Mini Core does not automatically parse arguments lists to create dependency annotations. Instead, an array of string identifiers must be supplied along with the dependent function or class. So far we've seen this done with `options`. It is recommended that the dependency list be maintained in the source file of the dependent itself. An annotation can be added directly to the dependent function before registration.
+Mini Core does not automatically parse arguments lists to create dependency annotations (possible future plugin). Instead, an array of string identifiers must be supplied along with the dependent function or class. So far we've seen this done with `options`. It is recommended that the dependency list be maintained in the source file of the dependent itself. An annotation can be added directly to the dependent function before registration.
 
 Example:
 ```javascript
 class Foo {
   constructor(bar, baz) {
-    // foo stuff...
+    // foo's business...
   }
 }
 
@@ -130,11 +122,8 @@ export default Foo;
 
 ## Execution API
 
-#### `bootstrap(fn, options)`
-Once all dependencies have been registered to a `core` object, it can be started with `core.bootstrap`. `bootstrap` steps through the `core`'s startup phases before executing the **optional** function argument.
-
-Options:
-- `inject: Array[String]` an array of dependency identifiers. At this time, _all_ registered dependencies are available to inject.
+#### `bootstrap(fn, { inject: [] })`
+Once all dependencies have been registered to a `core` object, it can be started with `core.bootstrap`. `bootstrap` steps through the `core`'s startup phases before executing the optional function argument. All registered dependencies will be ready to inject into this function.
 
 Examples:
 ```javascript
@@ -155,7 +144,7 @@ Bootstrapping a `core` performs a few operations under the hood:
 
 #### Configuration Phase
 
-Providers created manually with `core.provide` (or automatically with `core.constant`) are registered immediately and can be injected into functions passed to `core.config`. In the case of manual providers, their entire definition is injected, whereas `constant` providers are resolved via a call to their `_get` method.
+Providers created manually with `core.provide` (or automatically with `core.constant`) are registered immediately and can be injected into functions passed to `core.config(fn, { inject: [] })`. In the case of manual providers, their entire definition is injected, whereas `constant` providers are resolved via a call to their `_get` method.
 
 Example:
 ```javascript
@@ -190,93 +179,69 @@ After all `config` functions are run, all `providers` enqueued by calls to `valu
 
 #### Run Phase
 
-Sometimes it is useful to break startup logic out into smaller, more discrete operations — especially if they are not interdependent. Before `core.bootstrap` is completed and its `optional` callback is called, any functions that have been passed to `core.run` are executed with dependencies injected. All registered dependencies are available to inject into `run` functions.
+Sometimes it is useful to break startup logic out into smaller, more discrete operations — especially if they are not interdependent. Before `core.bootstrap` is completed and its `optional` callback is called, any functions that have been passed to `core.run(fn, { inject: [] })` are executed with dependencies injected. All registered dependencies are available to inject into `run` functions.
 
 Example:
 ```javascript
 function subscribe(emitter) {
-  emitter.on('foo', () => alert('bar'));
+  emitter.on('foo', () => console.log('bar'));
 }
-
-subscribe._inject = ['emitter'];
 
 function publish(emitter) {
   emitter.emit('foo');
 }
 
-publish._inject = ['emitter'];
+subscribe._inject = publish._inject = ['emitter'];
 
 core
   .class('emitter', EventEmitter, { cache: true });
   .run(subscribe)
-  .bootstrap(publish);
+  .bootstrap(publish); // "bar"
 ```
 
-## Providers and the Injector
+## Extras
 
-In general, manual creation of providers is most useful for reusable functionality that needs to be configured differently from application to application.
+`get(id)`
 
-So far we have seen a couple of examples of manually created `providers`. The above `deepThoughtProvider` is a very basic example.
+It is not recommended to use `core` as a service locator, but if necessary, `core.get` will resolve a registered item. While possibly a sign of a design flaw, `get` may help avoid circular dependency problems.
 
-A detail omitted from that example is that when a `provider` is registered, the function passed to `core.provide` is actually passed an `injector`.
-```javascript
-core.provide('foo', injector => {
-  return { _get() { /* use injector */} };
-});
-```
-After the `core` Configuration Phase, the `injector` will have access to all dependencies registered to the core, so it can be used to access dependencies at runtime.
+`has(id)`
 
-#### `get(id)`
-`injector.get` can be used to resolve a registered dependency, just as shown in previous examples using `core.get`
+Returns whether a dependency has been registered to the `core`.
+
+`invoke(fn, { inject: [], withNew: false })`
+
+Invoke a function with listed dependencies, optionally using `new`.
+
+`wrap(fn, { inject: [], withNew: false })`
+
+A class or function can be wrapped such that when called, it will be passed dependencies from `core` and any additional arguments. Note: not all dependencies are available until after the `core` is bootstrapped.
 
 Example:
 ```javascript
-core
-  .value('foo', 'bar');
-  .provide('upperFoo', injector => {
-    return { _get: () => injector.get('foo').toUpperCase() };
-  })
-  .bootstrap()
-  .get('upperFoo'); // "BAR"
+core.constant('foo', 'bar');
+function wrapMe(foo, ...args) {
+  return args.unshift(foo).join(' ').toUpperCase();
+}
+const wrapped = core.wrap(wrapMe, { inject: ['foo'] });
+wrapped('bar'); // "FOO BAR"
 ```
 
-#### `has(id)`
-To check whether a dependency is available, `injector.has` can be passed an identifier.
+## Injector Service
+
+The above extras are also wrapped in an `injector` service pre-registered to a `core`.
 
 Example:
 ```javascript
-core.provide('baz', injector => {
-  return {
-    _get() {
-      return injector.has('bestBaz')
-        ? injector.get('bestBaz')
-        : injector.get('okBaz');
-    }
-  };
-});    
+const fooProvider = injector => ({ _get: () => injector.has('foo') });
+
+core.provide('foo', fooProvider, { inject: ['injector'] });
 ```
-
-#### `invoke(fn, options)`
-The injector can be used to invoke a function with dependencies.
-
-Example:
-```javascript
-core.provide('foo', injector => {
-  return {
-    get() {
-      return injector.invoke(bar => bar.getBaz(), { inject: ['bar'] });
-    }
-  }
-});
-```
-
-----
-
-Shout-out to [Vojta Jina's `di`](https://github.com/angular/di.js).
 
 ## Future
 - Finish and document parent/child `cores`
 - Refactor for extensibility
-- Plugin ideas
+- Plugin/feature ideas
     + Async dependency/core resolution
     + Automatic annotation
+    + Plugin for file system conventions
