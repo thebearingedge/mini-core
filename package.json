@@ -4,7 +4,7 @@
   "description": "A Dependency Injection framework.",
   "main": "dist/index.js",
   "scripts": {
-    "test": "./node_modules/.bin/jshint && mocha --compilers js:babel/register",
+    "test": "./node_modules/.bin/mocha --compilers js:babel/register",
     "cover": "./node_modules/.bin/babel-node ./node_modules/.bin/babel-istanbul cover _mocha",
     "tdd": "./node_modules/.bin/mocha -w --compilers js:babel/register",
     "build": "./node_modules/.bin/babel mini-core.js -o dist/index.js",
