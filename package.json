@@ -36,7 +36,6 @@
     "babel-istanbul": "0.4.0",
     "chai": "3.4.0",
     "coveralls": "2.11.4",
-    "jshint": "2.8.0",
     "mocha": "2.3.3",
     "sinon": "1.17.2",
     "sinon-chai": "2.8.0"

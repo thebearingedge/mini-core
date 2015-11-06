@@ -29,7 +29,7 @@ export default function miniCore(constants) {
     provide(id, fn, options = { inject: [] }) {
       assertNotRegistered(id);
       const _id = id.endsWith('Provider') ? id : id + 'Provider';
-      const provider = invoke(fn, options);
+      const provider = this.invoke(fn, options);
       if (!isFunction(provider._get)) {
         throw new MiniCoreError(`"${_id}" needs a "_get" method`);
       }
@@ -38,6 +38,13 @@ export default function miniCore(constants) {
       Object.assign(provider, { _id, _inject, _get });
       this._providers[_id] = provider;
       return this;
+    },
+
+    invoke(fn, options = { withNew: false, inject: [] }) {
+      const inject = fn._inject || options.inject || [];
+      const Fn = fn;
+      const deps = inject.map(id => this.get(id));
+      return options.withNew ? new Fn(...deps) : fn(...deps);
     },
 
     constant(id, val) {
@@ -77,15 +84,18 @@ export default function miniCore(constants) {
     },
 
     wrap(fn, options = { inject: [], withNew: false }) {
+      const inject = fn._inject || options.inject || [];
       const wrapped = options.withNew
-        ? class Fn extends fn {
+        ? class Wrapped extends fn {
             constructor() {
-              const deps = (options.inject || []).map(id => core.get(id));
-              const args = deps.concat(...arguments);
+              const args = inject .map(id => core.get(id)).concat(...arguments);
               super(...args);
             }
           }
-        : () => invoke(fn, options);
+        : function wrapped() {
+            const args = inject.map(id => core.get(id)).concat(...arguments);
+            return fn(...args);
+          };
       Object.defineProperty(wrapped, 'name', {
         writable: false,
         enumerable: false,
@@ -106,7 +116,7 @@ export default function miniCore(constants) {
         throw new MiniCoreError(`Dependency "${id}" not found`);
       }
       resolved.push(id);
-      const result = invoke(provider._get);
+      const result = this.invoke(provider._get);
       resolving[id] = false;
       resolved.splice(0);
       return result;
@@ -138,7 +148,7 @@ export default function miniCore(constants) {
       }
       root._bootstrap();
       options.withNew = false;
-      if (fn) invoke(fn, options);
+      if (fn) this.invoke(fn, options);
       return this;
     },
 
@@ -165,7 +175,7 @@ export default function miniCore(constants) {
 
     _flushRunQueue() {
       while (this._runQueue.length) {
-        invoke(this._runQueue.shift());
+        this.invoke(this._runQueue.shift());
       }
       this._started = true;
       this._children.forEach(child => child._flushRunQueue());
@@ -175,7 +185,8 @@ export default function miniCore(constants) {
 
   return core
     .constant('injector', {
-      invoke,
+      wrap: (...args) => core.wrap(...args),
+      invoke: (...args) => core.invoke(...args),
       has: id => core.has(id),
       get: id => core.get(id)
     })
@@ -185,12 +196,6 @@ export default function miniCore(constants) {
     if (!isUndefined(core._providers[id])) {
       throw new MiniCoreError(`"${id}" has already been registered`);
     }
-  }
-
-  function invoke(fn, options = { withNew: false, inject: [] }) {
-    const Fn = fn;
-    const deps = (fn._inject || options.inject || []).map(id => core.get(id));
-    return options.withNew ? new Fn(...deps) : fn(...deps);
   }
 
   function valueProvider(id, val) {
@@ -204,7 +209,7 @@ export default function miniCore(constants) {
       _cache: null,
       _get() {
         if (this._cache) return this._cache;
-        const result = invoke(fn, { withNew });
+        const result = core.invoke(fn, { withNew });
         return cache ? (this._cache = result) : result;
       }
     };
@@ -229,7 +234,7 @@ export default function miniCore(constants) {
       }
       return provider._id.endsWith('Provider')
         ? provider
-        : invoke(provider._get);
+        : core.invoke(provider._get);
     });
     configFn(...deps);
   }
