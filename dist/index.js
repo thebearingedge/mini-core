@@ -52,7 +52,8 @@ function miniCore(constants) {
       }
       var _inject = provider._get._inject || [];
       var _get = provider._get.bind(provider);
-      Object.assign(provider, { _id: _id, _inject: _inject, _get: _get });
+      _get._inject = _inject;
+      Object.assign(provider, { _id: _id, _get: _get });
       this._providers[_id] = provider;
       return this;
     },

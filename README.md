@@ -81,7 +81,7 @@ return {
   _cache: null,
   _get() {
     if (this._cache) return this._cache;
-    const result = invoke(fn, { withNew });
+    const result = core.invoke(fn, { withNew });
     return cache ? (this._cache = result) : result;
   }
 };
@@ -123,7 +123,7 @@ export default Foo;
 ## Execution API
 
 #### `bootstrap(fn, { inject: [] })`
-Once all dependencies have been registered to a `core` object, it can be started with `core.bootstrap`. `bootstrap` steps through the `core`'s startup phases before executing the optional function argument. All registered dependencies will be ready to inject into this function.
+Once all dependencies have been registered or enqueued, the `core` can be started with `core.bootstrap`. `bootstrap` steps through the `core`'s startup phases before executing the optional function argument. All dependencies will be ready to inject into this function.
 
 Examples:
 ```javascript

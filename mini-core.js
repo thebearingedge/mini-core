@@ -35,7 +35,8 @@ export default function miniCore(constants) {
       }
       const _inject = provider._get._inject || [];
       const _get = provider._get.bind(provider);
-      Object.assign(provider, { _id, _inject, _get });
+      _get._inject = _inject;
+      Object.assign(provider, { _id, _get });
       this._providers[_id] = provider;
       return this;
     },
