@@ -221,7 +221,7 @@ Example:
 ```javascript
 core.constant('foo', 'bar');
 function wrapMe(foo, ...args) {
-  return args.unshift(foo).join(' ').toUpperCase();
+  return [foo, ...args].join(' ').toUpperCase();
 }
 const wrapped = core.wrap(wrapMe, { inject: ['foo'] });
 wrapped('bar'); // "FOO BAR"
