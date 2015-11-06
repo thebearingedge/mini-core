@@ -224,7 +224,7 @@ function wrapMe(foo, ...args) {
   return [foo, ...args].join(' ').toUpperCase();
 }
 const wrapped = core.wrap(wrapMe, { inject: ['foo'] });
-wrapped('bar'); // "FOO BAR"
+wrapped('baz'); // "BAR BAZ"
 ```
 
 ## Injector Service
