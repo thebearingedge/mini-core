@@ -1,6 +1,6 @@
 {
   "name": "mini-core",
-  "version": "3.0.1",
+  "version": "3.0.3",
   "description": "A Dependency Injection framework.",
   "main": "dist/index.js",
   "scripts": {
