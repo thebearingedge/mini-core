@@ -3,7 +3,7 @@
 
 export default function miniCore(constants) {
 
-  const resolving = {};
+  let resolving = {};
   const resolved = [];
 
   const core = {
@@ -89,7 +89,7 @@ export default function miniCore(constants) {
       const wrapped = options.withNew
         ? class Wrapped extends fn {
             constructor() {
-              const args = inject .map(id => core.get(id)).concat(...arguments);
+              const args = inject.map(id => core.get(id)).concat(...arguments);
               super(...args);
             }
           }
@@ -109,11 +109,15 @@ export default function miniCore(constants) {
     get(id) {
       if (resolving[id]) {
         const cycle = resolved.concat(id);
+        resolving = {};
+        resolved.splice(0);
         throw new MiniCoreError(`Cyclic dependency "${cycle.join(' -> ')}"`);
       }
       resolving[id] = true;
       const provider = findProvider(id, this);
       if (!provider) {
+        resolving = {};
+        resolved.splice(0);
         throw new MiniCoreError(`Dependency "${id}" not found`);
       }
       resolved.push(id);
@@ -144,9 +148,7 @@ export default function miniCore(constants) {
 
     bootstrap(fn, options = { inject: [] }) {
       let root = this;
-      while (root._parent && !root._parent._started) {
-        root = root._parent;
-      }
+      while (root._parent && !root._parent._started) root = root._parent;
       root._bootstrap();
       options.withNew = false;
       if (fn) this.invoke(fn, options);
@@ -160,26 +162,25 @@ export default function miniCore(constants) {
     },
 
     _configure() {
-      while (this._configQueue.length) {
-        configure(this._configQueue.shift());
-      }
-      this._children.forEach(child => child._configure());
+      const { _configQueue, _children } = this;
+      while (_configQueue.length) configure(_configQueue.shift());
+      _children.forEach(child => child._configure());
     },
 
     _flushProviderQueue() {
-      while (this._providerQueue.length) {
-        const provider = this._providerQueue.shift();
-        this._providers[provider._id] = provider;
+      const { _providerQueue, _providers, _children } = this;
+      while (_providerQueue.length) {
+        const provider = _providerQueue.shift();
+        _providers[provider._id] = provider;
       }
-      this._children.forEach(child => child._flushProviderQueue());
+      _children.forEach(child => child._flushProviderQueue());
     },
 
     _flushRunQueue() {
-      while (this._runQueue.length) {
-        this.invoke(this._runQueue.shift());
-      }
+      const { _runQueue, _children } = this;
+      while (_runQueue.length) this.invoke(_runQueue.shift());
       this._started = true;
-      this._children.forEach(child => child._flushRunQueue());
+      _children.forEach(child => child._flushRunQueue());
     }
 
   };
