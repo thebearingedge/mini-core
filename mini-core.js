@@ -37,7 +37,7 @@ export default function miniCore(constants) {
       const _get = provider._get.bind(provider);
       _get._inject = _inject;
       Object.assign(provider, { _id, _get });
-      this._providers[_id] = provider;
+      Object.assign(this._providers, { [_id]: provider });
       return this;
     },
 
@@ -244,11 +244,13 @@ export default function miniCore(constants) {
 }
 
 class MiniCoreError extends Error {
+
   constructor(message) {
-    super(message);
+    super();
     Error.captureStackTrace(this, this.constructor);
     this.message = `[MiniCoreError] ${message}`;
   }
+
 }
 
 function isUndefined(value) {

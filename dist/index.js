@@ -16,6 +16,8 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 function miniCore(constants) {
 
   var resolving = {};
@@ -54,7 +56,7 @@ function miniCore(constants) {
       var _get = provider._get.bind(provider);
       _get._inject = _inject;
       Object.assign(provider, { _id: _id, _get: _get });
-      this._providers[_id] = provider;
+      Object.assign(this._providers, _defineProperty({}, _id, provider));
       return this;
     },
 
@@ -156,11 +158,15 @@ function miniCore(constants) {
     get: function get(id) {
       if (resolving[id]) {
         var cycle = resolved.concat(id);
+        resolving = {};
+        resolved.splice(0);
         throw new MiniCoreError('Cyclic dependency "' + cycle.join(' -> ') + '"');
       }
       resolving[id] = true;
       var provider = findProvider(id, this);
       if (!provider) {
+        resolving = {};
+        resolved.splice(0);
         throw new MiniCoreError('Dependency "' + id + '" not found');
       }
       resolved.push(id);
@@ -197,9 +203,7 @@ function miniCore(constants) {
       var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
 
       var root = this;
-      while (root._parent && !root._parent._started) {
-        root = root._parent;
-      }
+      while (root._parent && !root._parent._started) root = root._parent;
       root._bootstrap();
       options.withNew = false;
       if (fn) this.invoke(fn, options);
@@ -213,30 +217,36 @@ function miniCore(constants) {
     },
 
     _configure: function _configure() {
-      while (this._configQueue.length) {
-        configure(this._configQueue.shift());
-      }
-      this._children.forEach(function (child) {
+      var _configQueue = this._configQueue;
+      var _children = this._children;
+
+      while (_configQueue.length) configure(_configQueue.shift());
+      _children.forEach(function (child) {
         return child._configure();
       });
     },
 
     _flushProviderQueue: function _flushProviderQueue() {
-      while (this._providerQueue.length) {
-        var provider = this._providerQueue.shift();
-        this._providers[provider._id] = provider;
+      var _providerQueue = this._providerQueue;
+      var _providers = this._providers;
+      var _children = this._children;
+
+      while (_providerQueue.length) {
+        var provider = _providerQueue.shift();
+        _providers[provider._id] = provider;
       }
-      this._children.forEach(function (child) {
+      _children.forEach(function (child) {
         return child._flushProviderQueue();
       });
     },
 
     _flushRunQueue: function _flushRunQueue() {
-      while (this._runQueue.length) {
-        this.invoke(this._runQueue.shift());
-      }
+      var _runQueue = this._runQueue;
+      var _children = this._children;
+
+      while (_runQueue.length) this.invoke(_runQueue.shift());
       this._started = true;
-      this._children.forEach(function (child) {
+      _children.forEach(function (child) {
         return child._flushRunQueue();
       });
     }
@@ -314,7 +324,7 @@ var MiniCoreError = (function (_Error) {
   function MiniCoreError(message) {
     _classCallCheck(this, MiniCoreError);
 
-    _get2(Object.getPrototypeOf(MiniCoreError.prototype), 'constructor', this).call(this, message);
+    _get2(Object.getPrototypeOf(MiniCoreError.prototype), 'constructor', this).call(this);
     Error.captureStackTrace(this, this.constructor);
     this.message = '[MiniCoreError] ' + message;
   }
