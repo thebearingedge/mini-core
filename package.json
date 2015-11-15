@@ -1,6 +1,6 @@
 {
   "name": "mini-core",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "A Dependency Injection framework.",
   "main": "dist/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "pretest": "npm run lint",
     "test": "mocha --compilers js:babel-core/register",
     "precover": "npm run lint",
-    "cover": "babel-node node_modules/isparta/bin/isparta cover --report html node_modules/mocha/bin/_mocha",
+    "cover": "babel-node node_modules/isparta/bin/isparta cover --report html --report lcov node_modules/mocha/bin/_mocha",
     "prebuild": "npm run test",
     "build": "babel mini-core.js -o dist/index.js",
     "tdd": "mocha -R min -w --compilers js:babel-core/register",
