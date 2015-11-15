@@ -59,7 +59,7 @@ Correct. `core.constant('foo', 'bar')` creates and registers the following `prov
 #### `value(id, value)` or `value(object)`
 Very similar to `core.constant`, except that the `provider` created here is enqueued and inaccessible until _after_ the [configuration phase](#configuration-phase) of the `core` startup.
 
-#### `factory(id, fn, { inject: [], cache: false, withNew: false })`
+#### `factory(id, fn, { withNew: false, cache: false, inject: [] })`
 A factory function can be registered to a `core` object with `core.factory`. Dependents on this factory will be injected with its return value. 
 ```javascript
 core
@@ -67,9 +67,9 @@ core
   .bootstrap(foo => console.log(foo), { inject: ['foo'] }); // { bar: 'baz' }
 ```
 Options: 
- - `withNew: Boolean, default: false` the function will be called with `new` before its result is injected into dependents.
- - `cache: Boolean, default: false` the function will only be called the first time a dependent needs the result. Subsequent dependency resolutions receive the cached result.
- - `inject: Array[String], default []` an array of dependency identifiers. Given that they have been registered, the dependencies are resolved and passed to the function as arguments.
+ - `withNew: Boolean, default = false` the function will be called with `new` before its result is injected into dependents.
+ - `cache: Boolean, default = false` the function will only be called the first time a dependent needs the result. Subsequent dependency resolutions receive the cached result.
+ - `inject: Array[String], default = []` an array of dependency identifiers. Given that they have been registered, the dependencies are resolved and passed to the function as arguments.
 
 Like `core.value`, a `provider` is created automatically and enqueued until _after_ the core's [configuration phase](#configuration-phase).
 
@@ -87,7 +87,7 @@ return {
 };
 ```
 
-#### `core.class(id, Fn, { inject: [], cache: false })`
+#### `core.class(id, Fn, { cache: false, inject: [] })`
 Convenience method over `core.factory` that sets the `withNew` option to `true`.
 
 Example:
@@ -209,11 +209,11 @@ It is not recommended to use `core` as a service locator, but if necessary, `cor
 
 Returns whether a dependency has been registered to the `core`.
 
-`invoke(fn, { inject: [], withNew: false })`
+`invoke(fn, { withNew: false, inject: [] })`
 
 Invoke a function with listed dependencies, optionally using `new`.
 
-`wrap(fn, { inject: [], withNew: false })`
+`wrap(fn, { withNew: false, inject: [] })`
 
 A class or function can be wrapped such that when called, it will be passed dependencies from `core` and any additional arguments. Note: not all dependencies are available until after the `core` is bootstrapped.
 

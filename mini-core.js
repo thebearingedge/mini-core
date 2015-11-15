@@ -26,10 +26,10 @@ export default function miniCore(constants) {
       return !isUndefined(findProvider(id));
     },
 
-    provide(id, fn, options = { inject: [] }) {
+    provide(id, fn, { inject = [] } = {}) {
       assertNotRegistered(id);
       const _id = id.endsWith('Provider') ? id : id + 'Provider';
-      const provider = this.invoke(fn, options);
+      const provider = this.invoke(fn, { inject });
       if (!isFunction(provider._get)) {
         throw new MiniCoreError(`"${_id}" needs a "_get" method`);
       }
@@ -41,11 +41,11 @@ export default function miniCore(constants) {
       return this;
     },
 
-    invoke(fn, options = { withNew: false, inject: [] }) {
-      const inject = fn._inject || options.inject || [];
+    invoke(fn, { withNew = false, inject = [] } = {}) {
+      inject = fn._inject || inject;
       const Fn = fn;
       const deps = inject.map(id => this.get(id));
-      return options.withNew ? new Fn(...deps) : fn(...deps);
+      return withNew ? new Fn(...deps) : fn(...deps);
     },
 
     constant(id, val) {
@@ -71,22 +71,22 @@ export default function miniCore(constants) {
       return this;
     },
 
-    factory(id, fn, options = { inject: [], withNew: false, cache: false }) {
+    factory(id, fn, { inject = [], withNew = false, cache = false } = {}) {
       assertNotRegistered(id);
-      fn._inject || (fn._inject = options.inject);
+      fn._inject = fn._inject || inject;
       this._providers[id] = null;
-      this._providerQueue.push(factoryProvider(id, fn, options));
+      this._providerQueue.push(factoryProvider(id, fn, { withNew, cache }));
       return this;
     },
 
-    class(id, Fn, options = {}) {
-      options.withNew = true;
-      return this.factory(id, Fn, options);
+    class(id, Fn, { inject = [], cache = false } = {}) {
+      const withNew = true;
+      return this.factory(id, Fn, { inject, withNew, cache });
     },
 
-    wrap(fn, options = { inject: [], withNew: false }) {
-      const inject = fn._inject || options.inject || [];
-      const wrapped = options.withNew
+    wrap(fn, { inject = [], withNew = false } = {}) {
+      inject = fn._inject || inject;
+      const wrapped = withNew
         ? class Wrapped extends fn {
             constructor() {
               const args = inject.map(id => core.get(id)).concat(...arguments);
@@ -97,13 +97,13 @@ export default function miniCore(constants) {
             const args = inject.map(id => core.get(id)).concat(...arguments);
             return fn(...args);
           };
-      Object.defineProperty(wrapped, 'name', {
-        writable: false,
-        enumerable: false,
-        configurable: true,
-        value: fn.name
-      });
-      return wrapped;
+      return Object
+        .defineProperty(wrapped, 'name', {
+          writable: false,
+          enumerable: false,
+          configurable: true,
+          value: fn.name
+        });
     },
 
     get(id) {
@@ -127,14 +127,14 @@ export default function miniCore(constants) {
       return result;
     },
 
-    config(fn, options = { inject: [] }) {
-      fn._inject || (fn._inject = options.inject);
+    config(fn, { inject = [] } = {}) {
+      fn._inject = fn._inject || inject;
       this._configQueue.push(fn);
       return this;
     },
 
-    run(fn, options = { inject: [] }) {
-      fn._inject || (fn._inject = options.inject);
+    run(fn, { inject = [] } = {}) {
+      fn._inject = fn._inject || inject;
       this._runQueue.push(fn);
       return this;
     },
@@ -146,12 +146,12 @@ export default function miniCore(constants) {
       return core;
     },
 
-    bootstrap(fn, options = { inject: [] }) {
+    bootstrap(fn, { inject = [] } = {}) {
       let root = this;
       while (root._parent && !root._parent._started) root = root._parent;
       root._bootstrap();
-      options.withNew = false;
-      if (fn) this.invoke(fn, options);
+      const withNew = false;
+      if (fn) this.invoke(fn, { withNew, inject });
       return this;
     },
 

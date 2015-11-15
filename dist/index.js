@@ -6,7 +6,7 @@ Object.defineProperty(exports, '__esModule', {
 });
 var _bind = Function.prototype.bind;
 
-var _get2 = function get(_x9, _x10, _x11) { var _again = true; _function: while (_again) { var object = _x9, property = _x10, receiver = _x11; desc = parent = getter = undefined; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x9 = parent; _x10 = property; _x11 = receiver; _again = true; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
+var _get2 = function get(_x9, _x10, _x11) { var _again = true; _function: while (_again) { var object = _x9, property = _x10, receiver = _x11; _again = false; if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { _x9 = parent; _x10 = property; _x11 = receiver; _again = true; desc = parent = undefined; continue _function; } } else if ('value' in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } } };
 
 exports['default'] = miniCore;
 
@@ -44,11 +44,14 @@ function miniCore(constants) {
     },
 
     provide: function provide(id, fn) {
-      var options = arguments.length <= 2 || arguments[2] === undefined ? { inject: [] } : arguments[2];
+      var _ref = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+
+      var _ref$inject = _ref.inject;
+      var inject = _ref$inject === undefined ? [] : _ref$inject;
 
       assertNotRegistered(id);
       var _id = id.endsWith('Provider') ? id : id + 'Provider';
-      var provider = this.invoke(fn, options);
+      var provider = this.invoke(fn, { inject: inject });
       if (!isFunction(provider._get)) {
         throw new MiniCoreError('"' + _id + '" needs a "_get" method');
       }
@@ -63,14 +66,19 @@ function miniCore(constants) {
     invoke: function invoke(fn) {
       var _this = this;
 
-      var options = arguments.length <= 1 || arguments[1] === undefined ? { withNew: false, inject: [] } : arguments[1];
+      var _ref2 = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      var inject = fn._inject || options.inject || [];
+      var _ref2$withNew = _ref2.withNew;
+      var withNew = _ref2$withNew === undefined ? false : _ref2$withNew;
+      var _ref2$inject = _ref2.inject;
+      var inject = _ref2$inject === undefined ? [] : _ref2$inject;
+
+      inject = fn._inject || inject;
       var Fn = fn;
       var deps = inject.map(function (id) {
         return _this.get(id);
       });
-      return options.withNew ? new (_bind.apply(Fn, [null].concat(_toConsumableArray(deps))))() : fn.apply(undefined, _toConsumableArray(deps));
+      return withNew ? new (_bind.apply(Fn, [null].concat(_toConsumableArray(deps))))() : fn.apply(undefined, _toConsumableArray(deps));
     },
 
     constant: function constant(id, val) {
@@ -103,27 +111,44 @@ function miniCore(constants) {
     },
 
     factory: function factory(id, fn) {
-      var options = arguments.length <= 2 || arguments[2] === undefined ? { inject: [], withNew: false, cache: false } : arguments[2];
+      var _ref3 = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+
+      var _ref3$inject = _ref3.inject;
+      var inject = _ref3$inject === undefined ? [] : _ref3$inject;
+      var _ref3$withNew = _ref3.withNew;
+      var withNew = _ref3$withNew === undefined ? false : _ref3$withNew;
+      var _ref3$cache = _ref3.cache;
+      var cache = _ref3$cache === undefined ? false : _ref3$cache;
 
       assertNotRegistered(id);
-      fn._inject || (fn._inject = options.inject);
+      fn._inject = fn._inject || inject;
       this._providers[id] = null;
-      this._providerQueue.push(factoryProvider(id, fn, options));
+      this._providerQueue.push(factoryProvider(id, fn, { withNew: withNew, cache: cache }));
       return this;
     },
 
     'class': function _class(id, Fn) {
-      var options = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+      var _ref4 = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
 
-      options.withNew = true;
-      return this.factory(id, Fn, options);
+      var _ref4$inject = _ref4.inject;
+      var inject = _ref4$inject === undefined ? [] : _ref4$inject;
+      var _ref4$cache = _ref4.cache;
+      var cache = _ref4$cache === undefined ? false : _ref4$cache;
+
+      var withNew = true;
+      return this.factory(id, Fn, { inject: inject, withNew: withNew, cache: cache });
     },
 
     wrap: function wrap(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [], withNew: false } : arguments[1];
+      var _ref5 = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      var inject = fn._inject || options.inject || [];
-      var wrapped = options.withNew ? (function (_fn) {
+      var _ref5$inject = _ref5.inject;
+      var inject = _ref5$inject === undefined ? [] : _ref5$inject;
+      var _ref5$withNew = _ref5.withNew;
+      var withNew = _ref5$withNew === undefined ? false : _ref5$withNew;
+
+      inject = fn._inject || inject;
+      var wrapped = withNew ? (function (_fn) {
         _inherits(Wrapped, _fn);
 
         function Wrapped() {
@@ -146,13 +171,12 @@ function miniCore(constants) {
         })).concat.apply(_inject$map2, arguments);
         return fn.apply(undefined, _toConsumableArray(args));
       };
-      Object.defineProperty(wrapped, 'name', {
+      return Object.defineProperty(wrapped, 'name', {
         writable: false,
         enumerable: false,
         configurable: true,
         value: fn.name
       });
-      return wrapped;
     },
 
     get: function get(id) {
@@ -177,17 +201,23 @@ function miniCore(constants) {
     },
 
     config: function config(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
+      var _ref6 = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      fn._inject || (fn._inject = options.inject);
+      var _ref6$inject = _ref6.inject;
+      var inject = _ref6$inject === undefined ? [] : _ref6$inject;
+
+      fn._inject = fn._inject || inject;
       this._configQueue.push(fn);
       return this;
     },
 
     run: function run(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
+      var _ref7 = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-      fn._inject || (fn._inject = options.inject);
+      var _ref7$inject = _ref7.inject;
+      var inject = _ref7$inject === undefined ? [] : _ref7$inject;
+
+      fn._inject = fn._inject || inject;
       this._runQueue.push(fn);
       return this;
     },
@@ -200,13 +230,16 @@ function miniCore(constants) {
     },
 
     bootstrap: function bootstrap(fn) {
-      var options = arguments.length <= 1 || arguments[1] === undefined ? { inject: [] } : arguments[1];
+      var _ref8 = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+
+      var _ref8$inject = _ref8.inject;
+      var inject = _ref8$inject === undefined ? [] : _ref8$inject;
 
       var root = this;
       while (root._parent && !root._parent._started) root = root._parent;
       root._bootstrap();
-      options.withNew = false;
-      if (fn) this.invoke(fn, options);
+      var withNew = false;
+      if (fn) this.invoke(fn, { withNew: withNew, inject: inject });
       return this;
     },
 
