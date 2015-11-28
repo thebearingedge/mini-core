@@ -1,6 +1,4 @@
 
-'use strict'
-
 export default function miniCore(constants) {
 
   let resolving = {}
@@ -37,7 +35,7 @@ export default function miniCore(constants) {
       const _get = provider._get.bind(provider)
       _get._inject = _inject
       Object.assign(provider, { _id, _get })
-      Object.assign(this._providers, { [_id]: provider })
+      this._providers[_id] = provider
       return this
     },
 
@@ -104,13 +102,12 @@ export default function miniCore(constants) {
         : function wrapped() {
             return fn(...(deps().concat(...arguments)))
           };
-      return Object
-        .defineProperty(wrapped, 'name', {
-          writable: false,
-          enumerable: false,
-          configurable: true,
-          value: fn.name
-        });
+      return Object.defineProperty(wrapped, 'name', {
+        writable: false,
+        enumerable: false,
+        configurable: true,
+        value: fn.name
+      });
     },
 
     get(id) {
@@ -123,13 +120,13 @@ export default function miniCore(constants) {
       resolving[id] = true
       const provider = findProvider(id, this)
       if (!provider) {
-        resolving = {}
+        Object.keys(resolving).forEach(key => delete resolving[key])
         resolved.splice(0)
         throw new MiniCoreError(`Dependency "${id}" not found`)
       }
       resolved.push(id);
-      const result = this.invoke(provider._get)
-      resolving[id] = false
+      const result = provider._get()
+      delete resolving[id]
       resolved.splice(0)
       return result
     },
